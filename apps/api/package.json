@@ -21,6 +21,8 @@
     "better-auth": "^1.7.20",
     "drizzle-orm": "^0.45.4",
     "nestjs-pino": "^5.3.1",
+    "node-hl7-client": "^4.1.2",
+    "node-hl7-server": "^4.1.2",
     "pg": "^8.23.1",
     "pino": "^10.4.0",
     "pino-http": "^11.0.0",

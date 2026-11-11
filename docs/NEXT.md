@@ -12,7 +12,7 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 2. `[x]` Env vars set, deployed, verified: `curl -I` 200, `/health` ok, live CRUD smoke test.
 3. `[x]` **backend-dev + frontend-dev:** Phase 1b — auth (Better Auth) so the public dev site is not open before listeners exist.
 4. `[x]` **User:** MLLP host-port exception approved; senders use LAN IP `172.16.10.30`, range 6100–6150.
-5. `[ ]` **backend-dev:** Phase 2 — inbound listeners.
+5. `[~]` **backend-dev:** Phase 2 — inbound listeners (started 2026-11-11: `node-hl7-server`/`node-hl7-client` 4.1.2 installed in `apps/api`; API checked — see HANDOVER §3 'Phase 2 notes'). Nothing else built yet.
 
 ---
 

@@ -38,6 +38,10 @@ Ackwell is a full-stack app for HL7 v2 channels. An **inbound channel** is an ML
 | Coolify service `ackwell` | uuid `d3tdtacn0nqgdnanacqwv1pt`, hot reload, predefined network on, URL `https://ackwell.joemarkgimeno.com:5173`, env `DATABASE_URL` + `BETTER_AUTH_SECRET` set in Coolify. Container `app-d3tdtacn0nqgdnanacqwv1pt` publishes `172.16.10.30:6100-6150`. **LIVE.** |
 | Git repo | `git init` on `main`, local commits only (no remote) |
 
+### Phase 2 notes (in progress, pick up here)
+- Installed `node-hl7-server` + `node-hl7-client` 4.1.2 (ESM+CJS, Node ≥ 22). `server.createInbound({ port, version }, async (req, res) => …)`; the handler is async, so **save to Postgres, then `await res.sendResponse('AA')`** (send `AR` if the save fails). `req.getSocket().remoteAddress` gives the sender IP for the allowlist (use `net.BlockList` for CIDRs). `new Server({ bindAddress: '0.0.0.0', tls? })`.
+- Planned design: own lossless HL7↔JSON converter (`{ delimiters, segments: [{ id, fields }] }`, MSH-1/2 raw, field = string | components[] | `{ repeat: [...] }`, leaves keep HL7 escapes); `POST /api/channels/:id/start|stop`; restore running channels on boot; `GET /api/channels/:id/messages` + `GET /api/messages/:id`; wire the UI Start/Stop + Messages panel (poll until SSE); tests on a random port range with a raw MLLP client.
+
 ### How to run tests (Node is not on the host)
 ```
 docker run --rm --network host -v /var/run/docker.sock:/var/run/docker.sock \
@@ -97,3 +101,4 @@ New migration after a schema change: `cd apps/api && npx drizzle-kit generate --
 | 2026-11-11 | main session | Created Coolify `ackwell-db` (+ daily backup) and hot-reload service `ackwell` via API (admin token), set env vars, deployed. Fixed Turbo strict-env filtering of `DATABASE_URL` (`globalPassThroughEnv`). Live checks: `curl -I` 200, `/health` ok, CRUD smoke test (create, 400 out-of-range, delete) on the live URL. |
 | 2026-11-11 | main session | Phase 1b: Better Auth (guard, admin seed, login page). Tests 19/19. Seed env added in Coolify (password only there), service restarted, user confirmed login on the live site. |
 | 2026-11-11 | main session | UI designed and built (shadcn shell, channels list/form/detail, login), `GET /api/settings` (MLLP host + range). Playwright visual pass on live (desktop, mobile 390 px, dark); fixed mobile table clipping + outbound code block. Two sample channels created on dev (`Lab results in`, `Orders to LIS`). |
+| 2026-11-11 | main session | Phase 2 started: HL7 libraries installed and their API checked (notes in §3). Stopped at the usage limit before writing Phase 2 code. |
