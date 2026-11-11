@@ -13,6 +13,7 @@ import { and, asc, count, desc, eq, ilike, lt, or } from 'drizzle-orm';
 import { DB, type Db } from '../db/db.js';
 import { deliveryAttempts, messages, type ChannelRow, type DeliveryAttemptRow, type MessageRow } from '../db/schema.js';
 import { DeliveryService } from '../delivery/delivery.service.js';
+import { OutboundService } from '../outbound/outbound.service.js';
 
 export interface InboundRecord {
   message: MessageSummary;
@@ -27,6 +28,7 @@ export class MessagesService {
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly delivery: DeliveryService,
+    private readonly outbound: OutboundService,
   ) {}
 
   /**
@@ -140,11 +142,11 @@ export class MessagesService {
     return Object.fromEntries(rows.map((r) => [r.channelId, r.n]));
   }
 
-  /** Re-queue delivery of an inbound message (any status). */
+  /** Re-queue an inbound message's delivery or an outbound message's send (any status). */
   async resend(id: string): Promise<MessageSummary> {
-    await this.get(id); // 404
+    const m = await this.get(id); // 404
     try {
-      return await this.delivery.resend(id);
+      return m.direction === 'outbound' ? await this.outbound.resend(id) : await this.delivery.resend(id);
     } catch (e) {
       throw new BadRequestException({ statusCode: 400, code: 'NOT_DELIVERABLE', message: (e as Error).message });
     }

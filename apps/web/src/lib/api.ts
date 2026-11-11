@@ -1,4 +1,5 @@
 import type {
+  ApiKey,
   AppSettings,
   Channel,
   CreateChannelInput,
@@ -7,7 +8,9 @@ import type {
   MessageList,
   MessageListQuery,
   MessageSummary,
+  NewApiKey,
   NewWebhookSecret,
+  SendRequestInput,
   UpdateChannel,
   WebhookSecret,
 } from '@ackwell/schemas';
@@ -56,6 +59,12 @@ export const api = {
     stop: (id: string) => request<Channel>('POST', `/api/channels/${id}/stop`),
     messages: (id: string, query: Partial<MessageListQuery> = {}) =>
       request<MessageList>('GET', `/api/channels/${id}/messages${toQuery(query)}`),
+    send: (id: string, body: SendRequestInput) => request<MessageSummary>('POST', `/api/channels/${id}/send`, body),
+  },
+  apiKeys: {
+    list: (channelId: string) => request<ApiKey[]>('GET', `/api/channels/${channelId}/api-keys`),
+    create: (channelId: string, label: string) => request<NewApiKey>('POST', `/api/channels/${channelId}/api-keys`, { label }),
+    revoke: (channelId: string, id: string) => request<ApiKey>('DELETE', `/api/channels/${channelId}/api-keys/${id}`),
   },
   messages: {
     get: (id: string) => request<MessageDetail>('GET', `/api/messages/${id}`),

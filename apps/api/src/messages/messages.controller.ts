@@ -17,7 +17,7 @@ export class MessagesController {
 
   @Post(':id/resend')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Queue the inbound message for delivery again (attempt numbering continues).' })
+  @ApiOperation({ summary: 'Queue the message again: inbound → webhook delivery, outbound → MLLP send (attempt numbering continues).' })
   @ApiOkResponse({ schema: openApi(messageSummarySchema, 'output') })
   resend(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.messages.resend(id);

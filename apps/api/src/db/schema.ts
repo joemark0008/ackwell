@@ -104,6 +104,8 @@ export const apiKeys = pgTable(
       .notNull()
       .references(() => channels.id, { onDelete: 'cascade' }),
     keyHash: text('key_hash').notNull(),
+    /** First characters of the key (`ak_xxxxxxxx`) for display. */
+    keyPrefix: text('key_prefix').notNull().default(''),
     label: text('label').notNull(),
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
@@ -133,6 +135,7 @@ export const webhookSecrets = pgTable(
 
 export type ChannelRow = typeof channels.$inferSelect;
 export type WebhookSecretRow = typeof webhookSecrets.$inferSelect;
+export type ApiKeyRow = typeof apiKeys.$inferSelect;
 export type NewChannelRow = typeof channels.$inferInsert;
 export type MessageRow = typeof messages.$inferSelect;
 export type DeliveryAttemptRow = typeof deliveryAttempts.$inferSelect;

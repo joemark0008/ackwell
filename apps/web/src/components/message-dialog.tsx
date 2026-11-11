@@ -47,7 +47,7 @@ function ResendButton({ m }: { m: MessageDetail }) {
   async function go() {
     try {
       await resend.mutateAsync(m.id);
-      toast.success('Queued for delivery again');
+      toast.success(m.direction === 'outbound' ? 'Queued to send again' : 'Queued for delivery again');
     } catch (err) {
       toast.error(err instanceof ApiError && err.body?.message ? err.body.message : 'Could not resend.');
     }
@@ -77,7 +77,7 @@ function Body({ m }: { m: MessageDetail }) {
           <span className="font-mono text-[13px]">{m.remoteAddress ?? '—'}</span>
         </Meta>
         <Meta label="Received">{formatDateTime(m.createdAt)}</Meta>
-        {m.direction === 'inbound' && m.json && (
+        {m.json && (
           <div className="col-span-2 flex items-end justify-start sm:col-span-1 sm:justify-end">
             <ResendButton m={m} />
           </div>

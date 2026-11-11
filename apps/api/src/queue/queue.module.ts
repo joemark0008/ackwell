@@ -40,11 +40,15 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
     this.log.log('pg-boss stopped');
   }
 
-  /** Creates the queue if it does not exist, otherwise applies the options. */
-  async ensureQueue(name: string, options: Parameters<PgBoss['createQueue']>[1]): Promise<void> {
+  /** Creates the queue if it does not exist, otherwise applies the options (the policy is fixed at creation). */
+  async ensureQueue(name: string, options: NonNullable<Parameters<PgBoss['createQueue']>[1]>): Promise<void> {
     const existing = await this.boss.getQueue(name);
-    if (existing) await this.boss.updateQueue(name, options);
-    else await this.boss.createQueue(name, options);
+    if (!existing) {
+      await this.boss.createQueue(name, options);
+      return;
+    }
+    const { policy: _fixed, ...updatable } = options;
+    await this.boss.updateQueue(name, updatable);
   }
 }
 

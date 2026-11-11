@@ -8,6 +8,7 @@ import { DbModule } from './db/db.module.js';
 import { DeliveryModule } from './delivery/delivery.module.js';
 import { HealthController } from './health/health.controller.js';
 import { MessagesModule } from './messages/messages.module.js';
+import { OutboundModule } from './outbound/outbound.module.js';
 import { QueueModule } from './queue/queue.module.js';
 import { SettingsController } from './settings/settings.controller.js';
 
@@ -29,6 +30,7 @@ const pretty = process.env.NODE_ENV === 'development' && process.env.LOG_PRETTY 
     QueueModule,
     AuthModule,
     DeliveryModule,
+    OutboundModule,
     ChannelsModule,
     MessagesModule,
   ],

@@ -67,9 +67,10 @@ export class ChannelManager implements OnApplicationBootstrap, OnApplicationShut
   }
 
   async onApplicationBootstrap(): Promise<void> {
-    const rows = await this.db.select().from(channels).where(inArray(channels.status, ['running']));
+    const rows = (await this.db.select().from(channels).where(inArray(channels.status, ['running']))).filter(
+      (r) => r.direction === 'inbound', // outbound channels have no listener; their status is enough
+    );
     for (const row of rows) {
-      if (row.direction !== 'inbound') continue;
       try {
         await this.startListener(row);
       } catch (e) {
@@ -77,7 +78,7 @@ export class ChannelManager implements OnApplicationBootstrap, OnApplicationShut
         await this.setStatus(row.id, 'error');
       }
     }
-    if (rows.length) this.log.log(`Restored ${this.listeners.size}/${rows.length} running channel(s)`);
+    if (rows.length) this.log.log(`Restored ${this.listeners.size}/${rows.length} running inbound listener(s)`);
   }
 
   async onApplicationShutdown(): Promise<void> {

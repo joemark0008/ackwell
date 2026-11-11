@@ -10,6 +10,8 @@ import { MessagesCard } from '@/components/messages-card';
 import { PageHeader } from '@/components/page-header';
 import { StartStopButton } from '@/components/start-stop-button';
 import { WebhookCard } from '@/components/webhook-card';
+import { ApiKeysCard } from '@/components/api-keys-card';
+import { TestSendCard } from '@/components/test-send-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -91,20 +93,21 @@ function ConnectionCard({ channel }: { channel: Channel }) {
   const example = `curl -X POST ${sendUrl} \\
   -H "Authorization: Bearer <api-key>" \\
   -H "Content-Type: application/json" \\
-  -d '{ "MSH": { "9": "ADT^A01" }, "PID": { "5": "DOE^JANE" } }'`;
+  -d '{ "hl7": "MSH|^~\\\\&|APP|FAC|LIS|LAB|||ADT^A01|||${channel.hl7Version}\\rPID|1||MRN1||DOE^JANE" }'`;
   return (
     <Card>
       <CardHeader>
         <CardTitle>Connection</CardTitle>
-        <CardDescription>POST JSON here; Ackwell converts it to HL7 and sends it to the target.</CardDescription>
+        <CardDescription>POST a message here; Ackwell queues it, sends it over MLLP and records the ACK.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_240px]">
           <div className="min-w-0 space-y-3">
             <Endpoint label="Send endpoint" value={sendUrl} />
             <p className="text-xs text-muted-foreground">
-              The send endpoint and per-channel API keys arrive with outbound sending. The JSON shape follows the generic
-              segment → field → component format.
+              Body: <span className="font-mono">{'{ "hl7": "MSH|…" }'}</span> (raw text) or the generic JSON{' '}
+              <span className="font-mono">{'{ "segments": [...] }'}</span>. Empty MSH-7, MSH-10 and MSH-12 are filled in.
+              Authenticate with an API key from this page. Messages go out one at a time, in order.
             </p>
           </div>
           <Flow steps={outboundFlow(`${cfg.host}:${cfg.port}`, `POST …/${channel.id.slice(0, 8)}/send`)} />
@@ -219,11 +222,13 @@ export function ChannelDetailPage() {
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0 space-y-6">
           <ConnectionCard channel={channel} />
+          {channel.direction === 'outbound' && <TestSendCard channel={channel} />}
           <MessagesCard channel={channel} />
         </div>
         <div className="space-y-6">
           <ConfigCard channel={channel} />
           {channel.direction === 'inbound' && channel.delivery?.type === 'webhook' && <WebhookCard channel={channel} />}
+          {channel.direction === 'outbound' && <ApiKeysCard channel={channel} />}
           <Card size="sm">
             <CardContent>
               <dl className="divide-y">

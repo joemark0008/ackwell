@@ -1,4 +1,4 @@
-import type { Channel, CreateChannelInput, MessageListQuery, UpdateChannel } from '@ackwell/schemas';
+import type { Channel, CreateChannelInput, MessageListQuery, SendRequestInput, UpdateChannel } from '@ackwell/schemas';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './api';
 
@@ -12,6 +12,7 @@ export const keys = {
   messages: (channelId: string, filters: MessageFilters = {}) => ['channels', channelId, 'messages', filters] as const,
   message: (id: string) => ['messages', id] as const,
   webhookSecrets: (channelId: string) => ['channels', channelId, 'webhook-secrets'] as const,
+  apiKeys: (channelId: string) => ['channels', channelId, 'api-keys'] as const,
 };
 
 /** Poll interval for the message log while a channel is running (until SSE lands). */
@@ -115,5 +116,32 @@ export function useResendMessage() {
       void qc.invalidateQueries({ queryKey: keys.message(m.id) });
       void qc.invalidateQueries({ queryKey: ['channels', m.channelId, 'messages'] });
     },
+  });
+}
+
+export const useApiKeys = (channelId: string) =>
+  useQuery({ queryKey: keys.apiKeys(channelId), queryFn: () => api.apiKeys.list(channelId) });
+
+export function useCreateApiKey(channelId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (label: string) => api.apiKeys.create(channelId, label),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: keys.apiKeys(channelId) }),
+  });
+}
+
+export function useRevokeApiKey(channelId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.apiKeys.revoke(channelId, id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: keys.apiKeys(channelId) }),
+  });
+}
+
+export function useSendMessage(channelId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: SendRequestInput) => api.channels.send(channelId, body),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['channels', channelId, 'messages'] }),
   });
 }
