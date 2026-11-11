@@ -2,10 +2,13 @@ import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
 import { AuthModule } from './auth/auth.module.js';
 import { ChannelsModule } from './channels/channels.module.js';
+import { EventsModule } from './common/events.js';
 import { ConfigModule } from './config/config.module.js';
 import { DbModule } from './db/db.module.js';
+import { DeliveryModule } from './delivery/delivery.module.js';
 import { HealthController } from './health/health.controller.js';
 import { MessagesModule } from './messages/messages.module.js';
+import { QueueModule } from './queue/queue.module.js';
 import { SettingsController } from './settings/settings.controller.js';
 
 const pretty = process.env.NODE_ENV === 'development' && process.env.LOG_PRETTY !== 'false';
@@ -22,7 +25,10 @@ const pretty = process.env.NODE_ENV === 'development' && process.env.LOG_PRETTY 
       },
     }),
     DbModule,
+    EventsModule,
+    QueueModule,
     AuthModule,
+    DeliveryModule,
     ChannelsModule,
     MessagesModule,
   ],

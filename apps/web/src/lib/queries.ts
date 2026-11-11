@@ -11,6 +11,7 @@ export const keys = {
   channel: (id: string) => ['channels', id] as const,
   messages: (channelId: string, filters: MessageFilters = {}) => ['channels', channelId, 'messages', filters] as const,
   message: (id: string) => ['messages', id] as const,
+  webhookSecrets: (channelId: string) => ['channels', channelId, 'webhook-secrets'] as const,
 };
 
 /** Poll interval for the message log while a channel is running (until SSE lands). */
@@ -86,3 +87,33 @@ export function useMessages(channelId: string, filters: MessageFilters, live: bo
 
 export const useMessage = (id: string | null) =>
   useQuery({ queryKey: keys.message(id ?? ''), queryFn: () => api.messages.get(id!), enabled: id !== null });
+
+export const useWebhookSecrets = (channelId: string) =>
+  useQuery({ queryKey: keys.webhookSecrets(channelId), queryFn: () => api.webhookSecrets.list(channelId) });
+
+export function useRotateWebhookSecret(channelId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.webhookSecrets.rotate(channelId),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: keys.webhookSecrets(channelId) }),
+  });
+}
+
+export function useRevokeWebhookSecret(channelId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.webhookSecrets.revoke(channelId, id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: keys.webhookSecrets(channelId) }),
+  });
+}
+
+export function useResendMessage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.messages.resend(id),
+    onSuccess: (m) => {
+      void qc.invalidateQueries({ queryKey: keys.message(m.id) });
+      void qc.invalidateQueries({ queryKey: ['channels', m.channelId, 'messages'] });
+    },
+  });
+}

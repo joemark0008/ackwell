@@ -1,6 +1,6 @@
-import { Controller, Get, Param, ParseUUIDPipe } from '@nestjs/common';
-import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import { messageDetailSchema } from '@ackwell/schemas';
+import { Controller, Get, HttpCode, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { messageDetailSchema, messageSummarySchema } from '@ackwell/schemas';
 import { openApi } from '../common/zod.js';
 import { MessagesService } from './messages.service.js';
 
@@ -13,5 +13,13 @@ export class MessagesController {
   @ApiOkResponse({ schema: openApi(messageDetailSchema, 'output') })
   get(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.messages.get(id);
+  }
+
+  @Post(':id/resend')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Queue the inbound message for delivery again (attempt numbering continues).' })
+  @ApiOkResponse({ schema: openApi(messageSummarySchema, 'output') })
+  resend(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.messages.resend(id);
   }
 }

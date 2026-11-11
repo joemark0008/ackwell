@@ -112,7 +112,27 @@ export const apiKeys = pgTable(
   (t) => [uniqueIndex('api_keys_hash_unique').on(t.keyHash), index('api_keys_channel_idx').on(t.channelId)],
 );
 
+/**
+ * Webhook signing secrets. Stored in clear (the app must sign with them; the DB is LAN-only, see PLAN),
+ * never returned by the API after creation, never logged. At most two are active (revoked_at null)
+ * per channel during a rotation.
+ */
+export const webhookSecrets = pgTable(
+  'webhook_secrets',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    channelId: uuid('channel_id')
+      .notNull()
+      .references(() => channels.id, { onDelete: 'cascade' }),
+    secret: text('secret').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (t) => [index('webhook_secrets_channel_idx').on(t.channelId, t.createdAt)],
+);
+
 export type ChannelRow = typeof channels.$inferSelect;
+export type WebhookSecretRow = typeof webhookSecrets.$inferSelect;
 export type NewChannelRow = typeof channels.$inferInsert;
 export type MessageRow = typeof messages.$inferSelect;
 export type DeliveryAttemptRow = typeof deliveryAttempts.$inferSelect;

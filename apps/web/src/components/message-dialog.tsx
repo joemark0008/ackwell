@@ -1,12 +1,15 @@
 import type { MessageDetail } from '@ackwell/schemas';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Loader2, RotateCw } from 'lucide-react';
+import { toast } from 'sonner';
 import { AckBadge, MessageStatusBadge } from '@/components/badges';
 import { CopyButton } from '@/components/copy-button';
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatDateTime } from '@/lib/format';
-import { useMessage } from '@/lib/queries';
+import { ApiError } from '@/lib/api';
+import { useMessage, useResendMessage } from '@/lib/queries';
 
 /** Raw HL7 with one segment per line (segments are \r separated on the wire). */
 export function hl7Lines(raw: string): string {
@@ -39,12 +42,31 @@ function Meta({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
+function ResendButton({ m }: { m: MessageDetail }) {
+  const resend = useResendMessage();
+  async function go() {
+    try {
+      await resend.mutateAsync(m.id);
+      toast.success('Queued for delivery again');
+    } catch (err) {
+      toast.error(err instanceof ApiError && err.body?.message ? err.body.message : 'Could not resend.');
+    }
+  }
+  const busy = resend.isPending || m.status === 'processing';
+  return (
+    <Button variant="outline" size="sm" onClick={go} disabled={busy}>
+      {resend.isPending ? <Loader2 className="animate-spin" /> : <RotateCw />}
+      Resend
+    </Button>
+  );
+}
+
 function Body({ m }: { m: MessageDetail }) {
   const raw = m.raw ? hl7Lines(m.raw) : '';
   const json = m.json ? JSON.stringify(m.json, null, 2) : '';
   return (
     <>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-5">
         <Meta label="Status">
           <MessageStatusBadge status={m.status} />
         </Meta>
@@ -55,6 +77,11 @@ function Body({ m }: { m: MessageDetail }) {
           <span className="font-mono text-[13px]">{m.remoteAddress ?? '—'}</span>
         </Meta>
         <Meta label="Received">{formatDateTime(m.createdAt)}</Meta>
+        {m.direction === 'inbound' && m.json && (
+          <div className="col-span-2 flex items-end justify-start sm:col-span-1 sm:justify-end">
+            <ResendButton m={m} />
+          </div>
+        )}
       </div>
       {m.error && (
         <p role="alert" className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">

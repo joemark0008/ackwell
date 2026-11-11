@@ -22,6 +22,8 @@ export async function startApp(
     DATABASE_URL: pg.getConnectionUri(),
     MLLP_PORT_RANGE: '6000-6050',
     RETENTION_DEFAULT_DAYS: '7',
+    DELIVERY_RETRY_DELAY_SECONDS: '1',
+    QUEUE_POLL_SECONDS: '0.5',
     APP_URL: TEST_ORIGIN,
     BETTER_AUTH_SECRET: 'test-secret-'.padEnd(40, 'x'),
     SEED_ADMIN_EMAIL: ADMIN.email,

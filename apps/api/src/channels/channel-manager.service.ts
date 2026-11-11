@@ -1,4 +1,3 @@
-import { EventEmitter } from 'node:events';
 import {
   ConflictException,
   Inject,
@@ -9,21 +8,15 @@ import {
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from '@nestjs/common';
-import type { Channel, ChannelStatus, InboundConfig, MessageSummary } from '@ackwell/schemas';
+import type { Channel, ChannelStatus, InboundConfig } from '@ackwell/schemas';
 import { eq, inArray } from 'drizzle-orm';
+import { AppEvents } from '../common/events.js';
 import { ENV, type Env } from '../config/env.js';
 import { DB, type Db } from '../db/db.js';
 import { channels, type ChannelRow } from '../db/schema.js';
 import { MessagesService } from '../messages/messages.service.js';
 import { toChannel } from './channels.service.js';
 import { InboundListener } from './inbound-listener.js';
-
-export interface ChannelEvents {
-  /** A message was stored on a channel (inbound: ACK sent right after). */
-  message: [MessageSummary];
-  /** A channel changed status. */
-  status: [{ channelId: string; status: ChannelStatus; error?: string }];
-}
 
 /**
  * Owns the runtime side of channels: one MLLP listener per running inbound channel.
@@ -38,12 +31,12 @@ export class ChannelManager implements OnApplicationBootstrap, OnApplicationShut
   private readonly log = new Logger(ChannelManager.name);
   private readonly listeners = new Map<string, InboundListener>();
   private readonly busy = new Set<string>();
-  readonly events = new EventEmitter<ChannelEvents>();
 
   constructor(
     @Inject(DB) private readonly db: Db,
     @Inject(ENV) private readonly env: Env,
     private readonly messages: MessagesService,
+    private readonly events: AppEvents,
   ) {}
 
   isRunning(channelId: string): boolean {
@@ -150,7 +143,7 @@ export class ChannelManager implements OnApplicationBootstrap, OnApplicationShut
 
   private async setStatus(id: string, status: ChannelStatus, error?: string): Promise<ChannelRow> {
     const [row] = await this.db.update(channels).set({ status }).where(eq(channels.id, id)).returning();
-    this.events.emit('status', { channelId: id, status, ...(error ? { error } : {}) });
+    this.events.emit('channel.status', { channelId: id, status, ...(error ? { error } : {}) });
     return row!;
   }
 

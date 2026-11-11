@@ -2,10 +2,14 @@ import type {
   AppSettings,
   Channel,
   CreateChannelInput,
+  CreateChannelResponse,
   MessageDetail,
   MessageList,
   MessageListQuery,
+  MessageSummary,
+  NewWebhookSecret,
   UpdateChannel,
+  WebhookSecret,
 } from '@ackwell/schemas';
 
 export interface ApiErrorBody {
@@ -45,7 +49,7 @@ export const api = {
   channels: {
     list: () => request<Channel[]>('GET', '/api/channels'),
     get: (id: string) => request<Channel>('GET', `/api/channels/${id}`),
-    create: (input: CreateChannelInput) => request<Channel>('POST', '/api/channels', input),
+    create: (input: CreateChannelInput) => request<CreateChannelResponse>('POST', '/api/channels', input),
     update: (id: string, patch: UpdateChannel) => request<Channel>('PATCH', `/api/channels/${id}`, patch),
     remove: (id: string) => request<void>('DELETE', `/api/channels/${id}`),
     start: (id: string) => request<Channel>('POST', `/api/channels/${id}/start`),
@@ -55,6 +59,13 @@ export const api = {
   },
   messages: {
     get: (id: string) => request<MessageDetail>('GET', `/api/messages/${id}`),
+    resend: (id: string) => request<MessageSummary>('POST', `/api/messages/${id}/resend`),
+  },
+  webhookSecrets: {
+    list: (channelId: string) => request<WebhookSecret[]>('GET', `/api/channels/${channelId}/webhook-secrets`),
+    rotate: (channelId: string) => request<NewWebhookSecret>('POST', `/api/channels/${channelId}/webhook-secrets/rotate`),
+    revoke: (channelId: string, id: string) =>
+      request<WebhookSecret>('DELETE', `/api/channels/${channelId}/webhook-secrets/${id}`),
   },
 };
 

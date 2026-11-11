@@ -9,6 +9,7 @@ import { Flow, inboundFlow, outboundFlow } from '@/components/flow';
 import { MessagesCard } from '@/components/messages-card';
 import { PageHeader } from '@/components/page-header';
 import { StartStopButton } from '@/components/start-stop-button';
+import { WebhookCard } from '@/components/webhook-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -134,12 +135,6 @@ function ConfigCard({ channel }: { channel: Channel }) {
               <Row label="Allowed IPs" mono>
                 {((c.allowlist as string[]) ?? []).length ? (c.allowlist as string[]).join(', ') : <span className="font-sans text-muted-foreground">Any</span>}
               </Row>
-              <Row label="Webhook" mono>
-                {channel.delivery?.url}
-              </Row>
-              <Row label="Delivery">
-                {channel.delivery?.maxAttempts} attempts · {fmtNum(channel.delivery?.timeoutMs)} ms timeout
-              </Row>
             </>
           ) : (
             <>
@@ -228,6 +223,7 @@ export function ChannelDetailPage() {
         </div>
         <div className="space-y-6">
           <ConfigCard channel={channel} />
+          {channel.direction === 'inbound' && channel.delivery?.type === 'webhook' && <WebhookCard channel={channel} />}
           <Card size="sm">
             <CardContent>
               <dl className="divide-y">

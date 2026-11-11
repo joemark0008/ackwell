@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   controlIdOf,
   messageTypeOf,
@@ -9,9 +9,10 @@ import {
   type MessageListQuery,
   type MessageSummary,
 } from '@ackwell/schemas';
-import { and, asc, count, desc, eq, ilike, lt, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ilike, lt, or } from 'drizzle-orm';
 import { DB, type Db } from '../db/db.js';
 import { deliveryAttempts, messages, type ChannelRow, type DeliveryAttemptRow, type MessageRow } from '../db/schema.js';
+import { DeliveryService } from '../delivery/delivery.service.js';
 
 export interface InboundRecord {
   message: MessageSummary;
@@ -23,11 +24,15 @@ export interface InboundRecord {
 export class MessagesService {
   private readonly log = new Logger(MessagesService.name);
 
-  constructor(@Inject(DB) private readonly db: Db) {}
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    private readonly delivery: DeliveryService,
+  ) {}
 
   /**
-   * Inbound pipeline step 1: store the raw message (and its JSON) *before* the caller ACKs.
-   * Throws when the insert fails so the listener can answer `AR` (nothing was persisted).
+   * Inbound pipeline step 1: store the raw message (and its JSON) *before* the caller ACKs, and
+   * queue its delivery in the same transaction. Throws when the insert fails so the listener can
+   * answer `AR` (nothing was persisted).
    */
   async recordInbound(channel: ChannelRow, raw: string, remoteAddress: string | null): Promise<InboundRecord> {
     let json: Hl7Json | null = null;
@@ -38,22 +43,26 @@ export class MessagesService {
       parseError = (e as Error).message;
     }
     const ack = parseError ? 'AE' : 'AA';
-    const [row] = await this.db
-      .insert(messages)
-      .values({
-        channelId: channel.id,
-        direction: 'inbound',
-        raw,
-        json,
-        messageType: json ? messageTypeOf(json) : null,
-        controlId: json ? controlIdOf(json) : null,
-        status: parseError ? 'failed' : 'received',
-        ackCode: ack,
-        error: parseError,
-        remoteAddress,
-      })
-      .returning();
-    const message = toSummary(row!);
+    const row = await this.db.transaction(async (tx) => {
+      const [inserted] = await tx
+        .insert(messages)
+        .values({
+          channelId: channel.id,
+          direction: 'inbound',
+          raw,
+          json,
+          messageType: json ? messageTypeOf(json) : null,
+          controlId: json ? controlIdOf(json) : null,
+          status: parseError ? 'failed' : 'received',
+          ackCode: ack,
+          error: parseError,
+          remoteAddress,
+        })
+        .returning();
+      if (json && channel.delivery) await this.delivery.enqueue(inserted!.id, channel.delivery, tx);
+      return inserted!;
+    });
+    const message = toSummary(row);
     if (parseError) {
       this.log.warn({ channelId: channel.id, messageId: message.id }, `Unparseable HL7 stored: ${parseError}`);
     } else {
@@ -131,10 +140,14 @@ export class MessagesService {
     return Object.fromEntries(rows.map((r) => [r.channelId, r.n]));
   }
 
-  /** Raw SQL helper for tests / health: total rows. */
-  async total(): Promise<number> {
-    const [r] = await this.db.select({ n: sql<number>`count(*)::int` }).from(messages);
-    return r?.n ?? 0;
+  /** Re-queue delivery of an inbound message (any status). */
+  async resend(id: string): Promise<MessageSummary> {
+    await this.get(id); // 404
+    try {
+      return await this.delivery.resend(id);
+    } catch (e) {
+      throw new BadRequestException({ statusCode: 400, code: 'NOT_DELIVERABLE', message: (e as Error).message });
+    }
   }
 }
 

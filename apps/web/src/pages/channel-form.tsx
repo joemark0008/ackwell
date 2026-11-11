@@ -1,9 +1,10 @@
-import { HL7_VERSIONS, type Channel, type ChannelDirection, type UpdateChannel } from '@ackwell/schemas';
+import { HL7_VERSIONS, type Channel, type ChannelDirection, type NewWebhookSecret, type UpdateChannel } from '@ackwell/schemas';
 import { ArrowDownToLine, ArrowLeft, ArrowUpFromLine, Loader2, Lock } from 'lucide-react';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm, type FieldPath } from 'react-hook-form';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
+import { WebhookSecretDialog } from '@/components/webhook-secret-dialog';
 import { Flow, inboundFlow, outboundFlow } from '@/components/flow';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -95,6 +96,7 @@ function ChannelForm({ direction, channel }: { direction: ChannelDirection; chan
   const update = useUpdateChannel(channel?.id ?? '');
   const isEdit = Boolean(channel);
   const running = channel?.status === 'running';
+  const [newSecret, setNewSecret] = useState<{ channelId: string; secret: NewWebhookSecret } | null>(null);
   const range = settings.data?.mllp.portRange;
 
   const suggested = useMemo(
@@ -127,11 +129,20 @@ function ChannelForm({ direction, channel }: { direction: ChannelDirection; chan
   async function onSubmit(values: ChannelFormValues) {
     const payload = toPayload(values);
     try {
-      const saved = isEdit
-        ? await update.mutateAsync(patchFrom(payload, channel!))
-        : await create.mutateAsync(payload);
-      toast.success(isEdit ? 'Channel saved' : `Created “${saved.name}”`);
-      navigate(`/channels/${saved.id}`);
+      if (isEdit) {
+        const saved = await update.mutateAsync(patchFrom(payload, channel!));
+        toast.success('Channel saved');
+        navigate(`/channels/${saved.id}`);
+        return;
+      }
+      const created = await create.mutateAsync(payload);
+      toast.success(`Created “${created.name}”`);
+      if (created.webhookSecret) {
+        // Shown once: the user must copy it before leaving.
+        setNewSecret({ channelId: created.id, secret: created.webhookSecret });
+        return;
+      }
+      navigate(`/channels/${created.id}`);
     } catch (e) {
       const { fields, form: formMsg } = serverErrors(e);
       for (const [name, message] of Object.entries(fields)) {
@@ -349,6 +360,15 @@ function ChannelForm({ direction, channel }: { direction: ChannelDirection; chan
           </Card>
         </aside>
       </form>
+      <WebhookSecretDialog
+        secret={newSecret?.secret ?? null}
+        title="Your webhook signing secret"
+        onClose={() => {
+          const id = newSecret?.channelId;
+          setNewSecret(null);
+          if (id) navigate(`/channels/${id}`);
+        }}
+      />
     </div>
   );
 }

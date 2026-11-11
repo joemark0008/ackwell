@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, P
 import { ApiBody, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import {
   channelSchema,
+  createChannelResponseSchema,
   createChannelSchema,
   messageListQuerySchema,
   messageListSchema,
@@ -38,8 +39,9 @@ export class ChannelsController {
   }
 
   @Post()
+  @ApiOperation({ summary: 'Create a channel. Inbound channels also return their one-time webhook secret.' })
   @ApiBody({ schema: openApi(createChannelSchema) })
-  @ApiOkResponse({ schema: openApi(channelSchema, 'output') })
+  @ApiOkResponse({ schema: openApi(createChannelResponseSchema, 'output') })
   create(@Body(new ZodPipe(createChannelSchema)) body: CreateChannel) {
     return this.channels.create(body);
   }

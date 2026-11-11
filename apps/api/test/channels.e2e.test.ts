@@ -37,7 +37,7 @@ afterAll(async () => {
 describe('health', () => {
   it('GET /health is ok without the /api prefix', async () => {
     const r = await http().get('/health').expect(200);
-    expect(r.body).toEqual({ status: 'ok', db: 'ok' });
+    expect(r.body).toEqual({ status: 'ok', db: 'ok', queue: 'ok' });
   });
   it('serves the OpenAPI document', async () => {
     const r = await http().get('/api/docs-json').expect(200);

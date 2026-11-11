@@ -26,6 +26,10 @@ const envSchema = z.object({
   /** Address the MLLP listeners bind inside the container/host. */
   MLLP_BIND_ADDRESS: z.string().default('0.0.0.0'),
   RETENTION_DEFAULT_DAYS: z.coerce.number().int().min(1).max(3650).default(7),
+  /** Base delay between delivery retries (exponential backoff, capped at 10 min). */
+  DELIVERY_RETRY_DELAY_SECONDS: z.coerce.number().int().min(1).max(3600).default(10),
+  /** pg-boss worker poll interval. */
+  QUEUE_POLL_SECONDS: z.coerce.number().min(0.5).max(60).default(2),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 

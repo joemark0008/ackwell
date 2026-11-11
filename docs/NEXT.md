@@ -3,7 +3,7 @@
 Status keys: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 Update this file whenever a task changes state. Each line gives its owner, and links to its report in `docs/reports/` once done.
 
-**Now:** Phases 1, 1b and **2 (inbound listeners) done and LIVE** at https://ackwell.joemarkgimeno.com. **Next: Phase 3 (outbound send + worker) — then Phase 5 (webhook delivery) so inbound messages leave `received`.**
+**Now:** Phases 1, 1b, **2 (inbound) and 5 (signed webhook delivery) done and LIVE** at https://ackwell.joemarkgimeno.com. **Next: Phase 3 (outbound send + worker), then Phase 6 (retention).**
 
 ---
 
@@ -13,8 +13,8 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 3. `[x]` **backend-dev + frontend-dev:** Phase 1b — auth (Better Auth) so the public dev site is not open before listeners exist.
 4. `[x]` **User:** MLLP host-port exception approved; senders use LAN IP `172.16.10.30`, range 6100–6150.
 5. `[x]` **backend-dev:** Phase 2 — inbound listeners, message log API, UI wiring (2026-11-11, [report](reports/2026-11-11-backend-phase2-inbound.md)).
-6. `[ ]` **backend-dev:** Phase 3 — outbound: pg-boss setup, `POST /channels/:id/send` (API key), per-channel worker with `node-hl7-client`, ACK tracking + retries.
-7. `[ ]` **backend-dev:** Phase 5 — `DeliveryAdapter` + signed webhook so inbound messages are delivered.
+6. `[x]` **backend-dev:** Phase 5 — pg-boss, `DeliveryAdapter` + signed webhook, secrets, resend (2026-11-11, [report](reports/2026-11-11-backend-phase5-delivery.md)).
+7. `[ ]` **backend-dev:** Phase 3 — outbound: `POST /channels/:id/send` (API key), per-channel pg-boss queue (strict order) with `node-hl7-client`, ACK tracking + retries.
 8. `[ ]` **frontend-dev:** SSE live feed (replace 4 s polling), Monaco in the message dialog, test-send box, resend.
 
 ---
@@ -35,7 +35,7 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 - [x] npm workspaces + Turborepo: `apps/api`, `apps/web`, `packages/schemas`
 - [x] NestJS 12 (ESM) scaffold: config (Zod-validated env), nestjs-pino, Swagger at `/api/docs`, `GET /health`
 - [x] Drizzle schema + first migration `0000_init`: `channels` (unique name, unique inbound port), `messages` (index on channel id + created at), `delivery_attempts`, `api_keys`; migrations on startup
-- [ ] pg-boss setup (moved to Phase 2/3 where the first queue is used)
+- [x] pg-boss setup (done in Phase 5: `QueueService`, schema `pgboss`)
 - [x] Zod channel config schemas in `packages/schemas` (inbound / outbound / webhook delivery; port range checked by the API)
 - [x] Channel CRUD API `/api/channels` (400 VALIDATION_ERROR / PORT_OUT_OF_RANGE, 409 PORT_IN_USE / NAME_TAKEN / CHANNEL_RUNNING, 404 CHANNEL_NOT_FOUND)
 - [x] Tests (Vitest + Testcontainers): CRUD, validation 400s, conflicts, migration on an empty DB — 12/12 + schemas 7/7
@@ -53,7 +53,7 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 
 ## Phase 2 — Inbound (owner: backend-dev) — DONE 2026-11-11
 - [x] Channel manager: start/stop MLLP listeners at runtime (`POST /api/channels/:id/start|stop`); restore running channels on boot; close on shutdown
-- [x] Pipeline: save raw HL7 (+ JSON, type, control id, sender IP) → ACK (AA / AE / AR). Enqueue delivery → Phase 5 (no pg-boss yet; messages stay `received`)
+- [x] Pipeline: save raw HL7 (+ JSON, type, control id, sender IP) → ACK (AA / AE / AR); delivery job enqueued in the same transaction (Phase 5)
 - [x] Generic lossless HL7 ↔ JSON codec in `packages/schemas/src/hl7.ts` (segments → fields → repeats → components → subcomponents, escapes kept, custom delimiters)
 - [x] Round-trip tests on HL7 samples (schemas 14 tests) + MLLP e2e (API 8 tests with a raw MLLP client)
 - [x] Message log API: `GET /api/channels/:id/messages` (cursor paging, status/q filters, total), `GET /api/messages/:id`
@@ -76,21 +76,21 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 - [x] Channel detail (connection card with copyable MLLP address / send endpoint + curl, flow diagram, configuration, delete with confirm)
 - [x] Start/stop wired (detail page button + list row menu, toasts, `PORT_UNAVAILABLE` / `CHANNEL_BUSY` messages)
 - [x] Message log card (search by type / control id, status filter, cursor paging "Load older", 4 s polling while running) — SSE still `[ ]`
-- [~] Message detail dialog: raw HL7 beside JSON (`<pre>` panes; Monaco `[ ]`), ACK, sender, attempts; resend `[ ]`
+- [~] Message detail dialog: raw HL7 beside JSON (`<pre>` panes; Monaco `[ ]`), ACK, sender, attempts, resend `[x]`
 - [ ] Test-send box
-- [x] Component tests (Vitest + Testing Library): form mapping 6, channels page 2, messages card 2
+- [x] Component tests (Vitest + Testing Library): form mapping 6, channels page 2, messages card 2, webhook card 2
 - [ ] Report → lead review
 
-## Phase 5 — Delivery (owner: backend-dev)
-- [ ] `DeliveryAdapter` interface + registry
-- [ ] Webhook adapter: Standard Webhooks HMAC-SHA256 signing, two-secret rotation, retries with backoff
-- [ ] Secret generation (32 random bytes), shown once in the UI (frontend-dev)
-- [ ] Tests: signature verify, tamper, replay window, rotation, retries
-- [ ] Report → lead review
+## Phase 5 — Delivery (owner: backend-dev) — DONE 2026-11-11
+- [x] `DeliveryAdapter` interface + registry (`apps/api/src/delivery/delivery-adapter.ts`)
+- [x] Webhook adapter: Standard Webhooks HMAC-SHA256 signing, two-secret rotation, pg-boss retries with exponential backoff, attempts recorded; `POST /api/messages/:id/resend`
+- [x] Secret generation (32 random bytes, `whsec_`), returned once (create / rotate), shown once in the UI; secrets API (list hints, rotate, revoke) + webhook card
+- [x] Tests: signature verify / tamper / replay window / rotation (unit 6) + delivery e2e 8 (signed delivery, backoff, maxAttempts, 4xx, rotation, revoke, no secret, resend)
+- [x] Report → [reports/2026-11-11-backend-phase5-delivery.md](reports/2026-11-11-backend-phase5-delivery.md)
 
 ## Phase 6 — Retention (owner: backend-dev)
 - [ ] Per-channel retention days (default from `RETENTION_DEFAULT_DAYS`)
-- [ ] Hourly pg-boss job, batched deletes, skips pending/retrying messages
+- [ ] Hourly pg-boss job (`QueueService` exists), batched deletes, skips `received` / `processing` (pending delivery or retry)
 - [ ] Tests
 
 ## Phase 7 — Hardening (owner: backend-dev + frontend-dev)
@@ -131,3 +131,4 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 | 2026-11-11 | Phase 1b: Better Auth login (API guard, admin seed, login page), live and verified | main session | — |
 | 2026-11-11 | UI design: shadcn shell, channels list/form/detail, `/api/settings`; web tests 8/8, API 19/19; Playwright visual check desktop/mobile/dark on live | main session | — |
 | 2026-11-11 | Phase 2: HL7↔JSON codec, channel manager + MLLP listeners, messages API, UI start/stop + message log + dialog; schemas 21/21, API 27/27, web 10/10; live MLLP smoke on 172.16.10.30:6100 | main session | [report](reports/2026-11-11-backend-phase2-inbound.md) |
+| 2026-11-11 | Phase 5: pg-boss queue, DeliveryAdapter registry, signed webhook adapter (rotation, backoff), secrets API + UI, resend; API 41/41, web 12/12; live signed delivery verified | main session | [report](reports/2026-11-11-backend-phase5-delivery.md) |

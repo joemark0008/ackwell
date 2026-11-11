@@ -4,6 +4,7 @@ import {
   isPortInRange,
   type Channel,
   type CreateChannel,
+  type CreateChannelResponse,
   type UpdateChannel,
 } from '@ackwell/schemas';
 import { asc, eq } from 'drizzle-orm';
@@ -11,12 +12,14 @@ import { ENV, type Env } from '../config/env.js';
 import { validationError } from '../common/zod.js';
 import { DB, pgError, type Db } from '../db/db.js';
 import { channels, type ChannelRow } from '../db/schema.js';
+import { WebhookSecretsService } from '../delivery/webhook-secrets.service.js';
 
 @Injectable()
 export class ChannelsService {
   constructor(
     @Inject(DB) private readonly db: Db,
     @Inject(ENV) private readonly env: Env,
+    private readonly secrets: WebhookSecretsService,
   ) {}
 
   async list(): Promise<Channel[]> {
@@ -28,21 +31,27 @@ export class ChannelsService {
     return toChannel(await this.getRow(id));
   }
 
-  async create(input: CreateChannel): Promise<Channel> {
+  /** Inbound channels get their first webhook signing secret here; it is returned once. */
+  async create(input: CreateChannel): Promise<CreateChannelResponse> {
     this.assertPortInRange(input);
     try {
-      const [row] = await this.db
-        .insert(channels)
-        .values({
-          name: input.name,
-          direction: input.direction,
-          hl7Version: input.hl7Version,
-          retentionDays: input.retentionDays ?? this.env.RETENTION_DEFAULT_DAYS,
-          config: input.config,
-          delivery: input.direction === 'inbound' ? input.delivery : null,
-        })
-        .returning();
-      return toChannel(row!);
+      return await this.db.transaction(async (tx) => {
+        const [row] = await tx
+          .insert(channels)
+          .values({
+            name: input.name,
+            direction: input.direction,
+            hl7Version: input.hl7Version,
+            retentionDays: input.retentionDays ?? this.env.RETENTION_DEFAULT_DAYS,
+            config: input.config,
+            delivery: input.direction === 'inbound' ? input.delivery : null,
+          })
+          .returning();
+        const channel = toChannel(row!);
+        if (input.direction !== 'inbound' || input.delivery.type !== 'webhook') return channel;
+        const webhookSecret = await this.secrets.createInitial(row!.id, tx);
+        return { ...channel, webhookSecret };
+      });
     } catch (e) {
       throw mapUniqueViolation(e);
     }
