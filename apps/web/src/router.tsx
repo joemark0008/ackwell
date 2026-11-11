@@ -3,6 +3,7 @@ import { AppShell } from '@/components/app-shell';
 import { ChannelDetailPage } from '@/pages/channel-detail';
 import { EditChannelPage, NewChannelPage } from '@/pages/channel-form';
 import { ChannelsListPage } from '@/pages/channels-list';
+import { MessagesPage } from '@/pages/messages';
 import { NotFoundPage } from '@/pages/not-found';
 
 export function createRouter(email: string) {
@@ -16,6 +17,7 @@ export function createRouter(email: string) {
         { path: 'channels/new', element: <NewChannelPage /> },
         { path: 'channels/:id', element: <ChannelDetailPage /> },
         { path: 'channels/:id/edit', element: <EditChannelPage /> },
+        { path: 'messages', element: <MessagesPage /> },
         { path: '*', element: <NotFoundPage /> },
       ],
     },

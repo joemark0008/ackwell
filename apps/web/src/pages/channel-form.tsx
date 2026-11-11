@@ -1,7 +1,7 @@
 import { HL7_VERSIONS, type Channel, type ChannelDirection, type NewWebhookSecret, type UpdateChannel } from '@ackwell/schemas';
 import { ArrowDownToLine, ArrowLeft, ArrowUpFromLine, Loader2, Lock } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Controller, useForm, type FieldPath } from 'react-hook-form';
+import { Controller, useForm, useWatch, type FieldPath } from 'react-hook-form';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { WebhookSecretDialog } from '@/components/webhook-secret-dialog';
@@ -268,7 +268,7 @@ function ChannelForm({ direction, channel }: { direction: ChannelDirection; chan
                   <FieldDescription>One IP or CIDR per line. Leave empty to accept any host that can reach the port.</FieldDescription>
                   <FieldError errors={[err('config.allowlistText')]} />
                 </Field>
-                <TlsField control={control} disabled={running} />
+                <TlsField control={control} disabled={running} direction="inbound" register={register} invalid={invalid} err={err} />
               </Section>
 
               <Section title="Delivery" description="Each parsed message is POSTed as JSON to this webhook, with retries.">
@@ -311,7 +311,7 @@ function ChannelForm({ direction, channel }: { direction: ChannelDirection; chan
                   <Input id="ackTimeoutMs" inputMode="numeric" className="w-40 font-mono" disabled={running} aria-invalid={invalid('config.ackTimeoutMs')} {...register('config.ackTimeoutMs')} />
                   <FieldError errors={[err('config.ackTimeoutMs')]} />
                 </Field>
-                <TlsField control={control} disabled={running} />
+                <TlsField control={control} disabled={running} direction="outbound" register={register} invalid={invalid} err={err} />
               </Section>
 
               <Section title="Retries" description="Used when the target is down or no ACK arrives. Messages stay in order.">
@@ -373,21 +373,131 @@ function ChannelForm({ direction, channel }: { direction: ChannelDirection; chan
   );
 }
 
-function TlsField({ control, disabled }: { control: ReturnType<typeof useForm<ChannelFormValues>>['control']; disabled?: boolean }) {
+type FormControl = ReturnType<typeof useForm<ChannelFormValues>>['control'];
+
+function PemField({
+  id,
+  label,
+  help,
+  name,
+  register,
+  invalid,
+  err,
+  disabled,
+  placeholder,
+}: {
+  id: string;
+  label: string;
+  help?: string;
+  name: 'config.tlsCert' | 'config.tlsKey' | 'config.tlsCa';
+  register: ReturnType<typeof useForm<ChannelFormValues>>['register'];
+  invalid: (n: string) => boolean | undefined;
+  err: (n: string) => { message?: string } | undefined;
+  disabled?: boolean;
+  placeholder?: string;
+}) {
   return (
-    <Controller
-      control={control}
-      name="config.tlsEnabled"
-      render={({ field }) => (
-        <Field orientation="horizontal" className="rounded-lg border p-3">
-          <div className="flex-1 space-y-0.5">
-            <FieldLabel htmlFor="tls">TLS</FieldLabel>
-            <FieldDescription>Encrypt the MLLP connection. Certificates are configured in a later release.</FieldDescription>
-          </div>
-          <Switch id="tls" checked={field.value} onCheckedChange={field.onChange} disabled={disabled} />
-        </Field>
+    <Field data-invalid={invalid(name)}>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <Textarea
+        id={id}
+        rows={4}
+        spellCheck={false}
+        autoComplete="off"
+        className="font-mono text-xs"
+        placeholder={placeholder ?? '-----BEGIN CERTIFICATE-----'}
+        disabled={disabled}
+        aria-invalid={invalid(name)}
+        {...register(name)}
+      />
+      {help && <FieldDescription>{help}</FieldDescription>}
+      <FieldError errors={[err(name)]} />
+    </Field>
+  );
+}
+
+function TlsField({
+  control,
+  disabled,
+  direction,
+  register,
+  invalid,
+  err,
+}: {
+  control: FormControl;
+  disabled?: boolean;
+  direction: ChannelDirection;
+  register: ReturnType<typeof useForm<ChannelFormValues>>['register'];
+  invalid: (n: string) => boolean | undefined;
+  err: (n: string) => { message?: string } | undefined;
+}) {
+  const enabled = useWatch({ control, name: 'config.tlsEnabled' });
+  const hasKey = useWatch({ control, name: 'config.tlsHasKey' });
+  const pem = { register, invalid, err, disabled };
+  return (
+    <div className="space-y-3">
+      <Controller
+        control={control}
+        name="config.tlsEnabled"
+        render={({ field }) => (
+          <Field orientation="horizontal" className="rounded-lg border p-3">
+            <div className="flex-1 space-y-0.5">
+              <FieldLabel htmlFor="tls">TLS</FieldLabel>
+              <FieldDescription>
+                {direction === 'inbound' ? 'Serve MLLP over TLS with your certificate.' : 'Connect to the target over TLS.'}
+              </FieldDescription>
+            </div>
+            <Switch id="tls" checked={field.value} onCheckedChange={field.onChange} disabled={disabled} />
+          </Field>
+        )}
+      />
+      {enabled && direction === 'inbound' && (
+        <div className="space-y-4 rounded-lg border border-dashed p-3">
+          <PemField id="tlsCert" label="Certificate (PEM)" name="config.tlsCert" {...pem} />
+          <PemField
+            id="tlsKey"
+            label="Private key (PEM)"
+            name="config.tlsKey"
+            placeholder={hasKey ? 'A key is stored. Leave empty to keep it.' : '-----BEGIN PRIVATE KEY-----'}
+            help={hasKey ? 'A key is stored. Leave empty to keep it, or paste a new one to replace it.' : undefined}
+            {...pem}
+          />
+          <PemField id="tlsCa" label="CA certificate (PEM, optional)" name="config.tlsCa" help="Needed to verify client certificates." {...pem} />
+          <Controller
+            control={control}
+            name="config.tlsRequestCert"
+            render={({ field }) => (
+              <Field orientation="horizontal" data-invalid={invalid('config.tlsRequestCert')}>
+                <div className="flex-1 space-y-0.5">
+                  <FieldLabel htmlFor="requestCert">Require client certificate</FieldLabel>
+                  <FieldDescription>Mutual TLS. Senders must present a certificate signed by the CA above.</FieldDescription>
+                  <FieldError errors={[err('config.tlsRequestCert')]} />
+                </div>
+                <Switch id="requestCert" checked={field.value} onCheckedChange={field.onChange} disabled={disabled} />
+              </Field>
+            )}
+          />
+        </div>
       )}
-    />
+      {enabled && direction === 'outbound' && (
+        <div className="space-y-4 rounded-lg border border-dashed p-3">
+          <PemField id="tlsCa" label="CA certificate (PEM, optional)" name="config.tlsCa" help="The CA that signed the target's certificate." {...pem} />
+          <Controller
+            control={control}
+            name="config.tlsRejectUnauthorized"
+            render={({ field }) => (
+              <Field orientation="horizontal">
+                <div className="flex-1 space-y-0.5">
+                  <FieldLabel htmlFor="rejectUnauthorized">Verify the target certificate</FieldLabel>
+                  <FieldDescription>Off accepts self-signed certificates.</FieldDescription>
+                </div>
+                <Switch id="rejectUnauthorized" checked={field.value} onCheckedChange={field.onChange} disabled={disabled} />
+              </Field>
+            )}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 

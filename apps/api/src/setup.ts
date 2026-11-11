@@ -14,7 +14,7 @@ export function configureApp(app: NestExpressApplication): void {
   app.useBodyParser('urlencoded', { extended: true, limit: '1mb' });
 
   app.set('trust proxy', 1); // Traefik in front (Cloudflare IP comes via cf-connecting-ip)
-  app.setGlobalPrefix('api', { exclude: ['health'] });
+  app.setGlobalPrefix('api', { exclude: ['health', 'metrics'] });
   app.enableShutdownHooks();
   const doc = SwaggerModule.createDocument(
     app,

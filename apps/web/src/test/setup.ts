@@ -12,3 +12,10 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
     disconnect() {}
   } as unknown as typeof ResizeObserver;
 }
+
+// Radix Select in jsdom.
+const proto = Element.prototype as unknown as Record<string, unknown>;
+proto.hasPointerCapture ??= () => false;
+proto.setPointerCapture ??= () => {};
+proto.releasePointerCapture ??= () => {};
+proto.scrollIntoView ??= () => {};

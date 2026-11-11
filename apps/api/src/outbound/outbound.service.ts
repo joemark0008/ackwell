@@ -168,12 +168,19 @@ export class OutboundService implements OnApplicationBootstrap {
     const attempt = (prev?.n ?? 0) + 1;
     const triesThisJob = job.retryCount + 1;
 
-    await this.db.update(messages).set({ status: 'processing' }).where(eq(messages.id, messageId));
+    const [processing] = await this.db
+      .update(messages)
+      .set({ status: 'processing' })
+      .where(eq(messages.id, messageId))
+      .returning();
+    if (processing) this.events.emit('message', toSummary(processing));
     try {
       const res = await sendHl7({
         host: cfg.host,
         port: cfg.port,
         tls: cfg.tls.enabled,
+        ca: cfg.tls.ca,
+        rejectUnauthorized: cfg.tls.rejectUnauthorized,
         version: channel.hl7Version as Hl7Version,
         raw,
         ackTimeoutMs: cfg.ackTimeoutMs,

@@ -6,8 +6,10 @@ import { EventsModule } from './common/events.js';
 import { ConfigModule } from './config/config.module.js';
 import { DbModule } from './db/db.module.js';
 import { DeliveryModule } from './delivery/delivery.module.js';
+import { EventsController } from './events/events.controller.js';
 import { HealthController } from './health/health.controller.js';
 import { MessagesModule } from './messages/messages.module.js';
+import { MetricsModule } from './metrics/metrics.module.js';
 import { OutboundModule } from './outbound/outbound.module.js';
 import { QueueModule } from './queue/queue.module.js';
 import { RetentionModule } from './retention/retention.module.js';
@@ -22,13 +24,14 @@ const pretty = process.env.NODE_ENV === 'development' && process.env.LOG_PRETTY 
       pinoHttp: {
         level: process.env.LOG_LEVEL ?? 'info',
         redact: ['req.headers.authorization', 'req.headers.cookie', 'req.headers["x-api-key"]'],
-        autoLogging: { ignore: (req) => req.url === '/health' },
+        autoLogging: { ignore: (req) => req.url === '/health' || req.url === '/metrics' },
         ...(pretty ? { transport: { target: 'pino-pretty', options: { singleLine: true } } } : {}),
       },
     }),
     DbModule,
     EventsModule,
     QueueModule,
+    MetricsModule,
     AuthModule,
     DeliveryModule,
     OutboundModule,
@@ -36,6 +39,6 @@ const pretty = process.env.NODE_ENV === 'development' && process.env.LOG_PRETTY 
     MessagesModule,
     RetentionModule,
   ],
-  controllers: [HealthController, SettingsController],
+  controllers: [HealthController, EventsController, SettingsController],
 })
 export class AppModule {}

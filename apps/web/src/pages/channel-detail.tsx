@@ -120,7 +120,8 @@ function ConnectionCard({ channel }: { channel: Channel }) {
 
 function ConfigCard({ channel }: { channel: Channel }) {
   const c = channel.config as Record<string, unknown>;
-  const tls = (c.tls as { enabled?: boolean } | undefined)?.enabled;
+  const tlsCfg = (c.tls ?? {}) as { enabled?: boolean; requestCert?: boolean; hasKey?: boolean; rejectUnauthorized?: boolean };
+  const tls = tlsCfg.enabled;
   return (
     <Card>
       <CardHeader>
@@ -137,7 +138,13 @@ function ConfigCard({ channel }: { channel: Channel }) {
               Finished messages older than this are deleted hourly. Pending ones are kept.
             </span>
           </Row>
-          <Row label="TLS">{tls ? 'On' : 'Off'}</Row>
+          <Row label="TLS">
+            {!tls
+              ? 'Off'
+              : channel.direction === 'inbound'
+                ? `On, client cert ${tlsCfg.requestCert ? 'required' : 'optional'}${tlsCfg.hasKey ? ', key stored' : ''}`
+                : `On, target certificate ${tlsCfg.rejectUnauthorized ? 'verified' : 'not verified'}`}
+          </Row>
           {channel.direction === 'inbound' ? (
             <>
               <Row label="Allowed IPs" mono>

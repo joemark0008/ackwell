@@ -4,12 +4,13 @@ import {
   messageTypeOf,
   parseHl7,
   type Hl7Json,
+  type GlobalMessageListQuery,
   type MessageDetail,
   type MessageList,
   type MessageListQuery,
   type MessageSummary,
 } from '@ackwell/schemas';
-import { and, asc, count, desc, eq, ilike, lt, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ilike, lt, or, type SQL } from 'drizzle-orm';
 import { DB, type Db } from '../db/db.js';
 import { deliveryAttempts, messages, type ChannelRow, type DeliveryAttemptRow, type MessageRow } from '../db/schema.js';
 import { DeliveryService } from '../delivery/delivery.service.js';
@@ -76,8 +77,16 @@ export class MessagesService {
     return { message, ack };
   }
 
-  async list(channelId: string, q: MessageListQuery): Promise<MessageList> {
-    const filters = [eq(messages.channelId, channelId)];
+  /** One channel's log (newest first). */
+  list(channelId: string, q: MessageListQuery): Promise<MessageList> {
+    return this.query({ ...q, channelId });
+  }
+
+  /** Shared log query: optional `channelId` / `direction`, `status`, `q`, keyset paging, total. */
+  async query(q: GlobalMessageListQuery): Promise<MessageList> {
+    const filters: SQL[] = [];
+    if (q.channelId) filters.push(eq(messages.channelId, q.channelId));
+    if (q.direction) filters.push(eq(messages.direction, q.direction));
     if (q.status) filters.push(eq(messages.status, q.status));
     if (q.q) {
       const needle = `${escapeLike(q.q)}%`;

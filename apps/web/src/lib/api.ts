@@ -4,6 +4,7 @@ import type {
   Channel,
   CreateChannelInput,
   CreateChannelResponse,
+  GlobalMessageListQuery,
   MessageDetail,
   MessageList,
   MessageListQuery,
@@ -75,6 +76,8 @@ export const api = {
     revoke: (channelId: string, id: string) => request<ApiKey>('DELETE', `/api/channels/${channelId}/api-keys/${id}`),
   },
   messages: {
+    list: (query: Partial<GlobalMessageListQuery> = {}) =>
+      request<MessageList>('GET', `/api/messages${toQuery(query)}`),
     get: (id: string) => request<MessageDetail>('GET', `/api/messages/${id}`),
     resend: (id: string) => request<MessageSummary>('POST', `/api/messages/${id}/resend`),
   },

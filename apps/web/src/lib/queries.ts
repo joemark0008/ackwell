@@ -1,8 +1,11 @@
-import type { Channel, CreateChannelInput, MessageListQuery, SendRequestInput, UpdateChannel } from '@ackwell/schemas';
+import type { Channel, CreateChannelInput, GlobalMessageListQuery, MessageListQuery, SendRequestInput, UpdateChannel } from '@ackwell/schemas';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './api';
+import { useLiveStatus } from './live-state';
 
 export type MessageFilters = Pick<MessageListQuery, 'status' | 'q'>;
+/** Filters of the global log (GET /api/messages); channel logs use the subset without channelId/direction. */
+export type LogFilters = Pick<GlobalMessageListQuery, 'status' | 'q' | 'channelId' | 'direction'>;
 
 export const keys = {
   health: ['health'] as const,
@@ -10,12 +13,13 @@ export const keys = {
   channels: ['channels'] as const,
   channel: (id: string) => ['channels', id] as const,
   messages: (channelId: string, filters: MessageFilters = {}) => ['channels', channelId, 'messages', filters] as const,
+  allMessages: (filters: LogFilters = {}) => ['messages', 'all', filters] as const,
   message: (id: string) => ['messages', id] as const,
   webhookSecrets: (channelId: string) => ['channels', channelId, 'webhook-secrets'] as const,
   apiKeys: (channelId: string) => ['channels', channelId, 'api-keys'] as const,
 };
 
-/** Poll interval for the message log while a channel is running (until SSE lands). */
+/** Fallback poll interval for the message log while the live stream is NOT connected. */
 export const LIVE_POLL_MS = 4000;
 
 export const useHealth = () => useQuery({ queryKey: keys.health, queryFn: api.health, refetchInterval: 15_000 });
@@ -75,14 +79,27 @@ function useChannelStatusMutation(id: string, fn: (id: string) => Promise<Channe
 export const useStartChannel = (id: string) => useChannelStatusMutation(id, api.channels.start);
 export const useStopChannel = (id: string) => useChannelStatusMutation(id, api.channels.stop);
 
-/** Message log of a channel, newest first, cursor-paged; polls while `live` is true. */
+/** Message log of a channel, newest first, cursor-paged. SSE keeps it fresh; polls only as a fallback while the stream is down. */
 export function useMessages(channelId: string, filters: MessageFilters, live: boolean) {
+  const stream = useLiveStatus();
   return useInfiniteQuery({
     queryKey: keys.messages(channelId, filters),
     queryFn: ({ pageParam }) => api.channels.messages(channelId, { ...filters, limit: 50, cursor: pageParam }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
-    refetchInterval: live ? LIVE_POLL_MS : false,
+    refetchInterval: live && stream !== 'live' ? LIVE_POLL_MS : false,
+  });
+}
+
+/** Cross-channel message log. */
+export function useAllMessages(filters: LogFilters) {
+  const stream = useLiveStatus();
+  return useInfiniteQuery({
+    queryKey: keys.allMessages(filters),
+    queryFn: ({ pageParam }) => api.messages.list({ ...filters, limit: 50, cursor: pageParam }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    refetchInterval: stream !== 'live' ? LIVE_POLL_MS : false,
   });
 }
 
@@ -115,6 +132,7 @@ export function useResendMessage() {
     onSuccess: (m) => {
       void qc.invalidateQueries({ queryKey: keys.message(m.id) });
       void qc.invalidateQueries({ queryKey: ['channels', m.channelId, 'messages'] });
+      void qc.invalidateQueries({ queryKey: ['messages', 'all'] });
     },
   });
 }

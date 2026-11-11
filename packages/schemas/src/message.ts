@@ -61,6 +61,13 @@ export const messageListQuerySchema = z.object({
 });
 export type MessageListQuery = z.infer<typeof messageListQuerySchema>;
 
+/** Query string for GET /messages (all channels): the channel filters plus `channelId` and `direction`. */
+export const globalMessageListQuerySchema = messageListQuerySchema.extend({
+  channelId: z.uuid().optional(),
+  direction: channelDirectionSchema.optional(),
+});
+export type GlobalMessageListQuery = z.infer<typeof globalMessageListQuerySchema>;
+
 export const messageListSchema = z.object({
   items: z.array(messageSummarySchema),
   /** Pass as `cursor` to fetch the next (older) page; null when there is none. */

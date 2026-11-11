@@ -49,7 +49,7 @@ describe('channel form', () => {
       status: 'stopped',
       hl7Version: '2.3',
       retentionDays: 30,
-      config: { host: 'h', port: 2575, tls: { enabled: true }, ackTimeoutMs: 5000, retry: { maxAttempts: 3, backoffSeconds: 20 } },
+      config: { host: 'h', port: 2575, tls: { enabled: true, rejectUnauthorized: true }, ackTimeoutMs: 5000, retry: { maxAttempts: 3, backoffSeconds: 20 } },
       delivery: null,
       createdAt: '',
       updatedAt: '',
@@ -72,6 +72,83 @@ describe('channel form', () => {
     expect(serverErrors(new ApiError(409, { code: 'NAME_TAKEN' })).fields.name).toMatch(/already exists/);
     expect(serverErrors(new ApiError(400, { code: 'VALIDATION_ERROR', issues: [{ path: 'config.allowlist.0', message: 'bad' }] })).fields).toEqual({
       'config.allowlistText': 'bad',
+    });
+  });
+
+  describe('TLS', () => {
+    const CERT = '-----BEGIN CERTIFICATE-----\nabc\n-----END CERTIFICATE-----';
+    const KEY = '-----BEGIN PRIVATE KEY-----\nkey\n-----END PRIVATE KEY-----';
+    const inbound = () => {
+      const f = emptyForm('inbound', 6101);
+      f.name = 'Lab in';
+      f.delivery.url = 'https://x.test/hook';
+      return f;
+    };
+
+    it('sends { enabled: false } when TLS is off, even with leftover PEM text', () => {
+      const f = inbound();
+      f.config.tlsCert = CERT;
+      expect((toPayload(f) as any).config.tls).toEqual({ enabled: false });
+    });
+
+    it('inbound create: requires cert and key, maps errors to fields', async () => {
+      const f = inbound();
+      f.config.tlsEnabled = true;
+      const e = (await resolve(f)).errors as Record<string, any>;
+      expect(e.config.tlsCert.message).toMatch(/Certificate/);
+      expect(e.config.tlsKey.message).toMatch(/Private key/);
+      f.config.tlsCert = CERT;
+      f.config.tlsKey = KEY;
+      expect((await resolve(f)).errors).toEqual({});
+      expect((toPayload(f) as any).config.tls).toEqual({ enabled: true, cert: CERT, key: KEY, requestCert: false });
+    });
+
+    it('requestCert needs a CA', async () => {
+      const f = inbound();
+      Object.assign(f.config, { tlsEnabled: true, tlsCert: CERT, tlsKey: KEY, tlsRequestCert: true });
+      expect(((await resolve(f)).errors as any).config.tlsCa).toBeDefined();
+      f.config.tlsCa = CERT;
+      expect((await resolve(f)).errors).toEqual({});
+    });
+
+    it('inbound edit keeps the stored key: key omitted from the payload and validation passes', async () => {
+      const ch = {
+        id: '00000000-0000-4000-8000-000000000002',
+        name: 'Lab in',
+        direction: 'inbound',
+        status: 'stopped',
+        hl7Version: '2.5.1',
+        retentionDays: 7,
+        config: { port: 6101, tls: { enabled: true, cert: CERT, requestCert: false, hasKey: true }, allowlist: [] },
+        delivery: { type: 'webhook', url: 'https://x.test', timeoutMs: 10000, maxAttempts: 10 },
+        createdAt: '',
+        updatedAt: '',
+      } as unknown as Channel;
+      const f = formFromChannel(ch);
+      expect(f.config).toMatchObject({ tlsEnabled: true, tlsCert: CERT, tlsKey: '', tlsHasKey: true });
+      const tls = (toPayload(f) as any).config.tls;
+      expect(tls).toEqual({ enabled: true, cert: CERT, requestCert: false });
+      expect(JSON.stringify(tls)).not.toContain('hasKey');
+      expect((await resolve(f)).errors).toEqual({});
+      f.config.tlsKey = KEY;
+      expect((toPayload(f) as any).config.tls.key).toBe(KEY);
+    });
+
+    it('outbound: optional CA and rejectUnauthorized', async () => {
+      const f = emptyForm('outbound');
+      f.name = 'o';
+      f.config.host = 'lis.local';
+      f.config.tlsEnabled = true;
+      expect((toPayload(f) as any).config.tls).toEqual({ enabled: true, rejectUnauthorized: false });
+      f.config.tlsCa = CERT;
+      f.config.tlsRejectUnauthorized = true;
+      expect((toPayload(f) as any).config.tls).toEqual({ enabled: true, ca: CERT, rejectUnauthorized: true });
+      expect((await resolve(f)).errors).toEqual({});
+    });
+
+    it('maps server 400 TLS issues to the PEM fields', () => {
+      const e = new ApiError(400, { code: 'VALIDATION_ERROR', issues: [{ path: 'config.tls.cert', message: 'Must be a PEM block' }, { path: 'config.tls.ca', message: 'x' }] } as any);
+      expect(serverErrors(e).fields).toEqual({ 'config.tlsCert': 'Must be a PEM block', 'config.tlsCa': 'x' });
     });
   });
 });

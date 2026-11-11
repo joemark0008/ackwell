@@ -13,7 +13,7 @@ const channel: Channel = {
   status: 'running',
   hl7Version: '2.5.1',
   retentionDays: 7,
-  config: { host: 'lis.local', port: 2575, tls: { enabled: false }, ackTimeoutMs: 30000, retry: { maxAttempts: 5, backoffSeconds: 10 } },
+  config: { host: 'lis.local', port: 2575, tls: { enabled: false, rejectUnauthorized: true }, ackTimeoutMs: 30000, retry: { maxAttempts: 5, backoffSeconds: 10 } },
   delivery: null,
   createdAt: '2026-11-11T00:00:00Z',
   updatedAt: '2026-11-11T00:00:00Z',

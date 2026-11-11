@@ -19,6 +19,7 @@ export default defineConfig({
     proxy: {
       '/api': { target: apiTarget, changeOrigin: false },
       '/health': { target: apiTarget },
+      '/metrics': { target: apiTarget },
     },
   },
   build: { outDir: 'dist', sourcemap: true },

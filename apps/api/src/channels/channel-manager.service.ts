@@ -14,6 +14,7 @@ import { AppEvents } from '../common/events.js';
 import { ENV, type Env } from '../config/env.js';
 import { DB, type Db } from '../db/db.js';
 import { channels, type ChannelRow } from '../db/schema.js';
+import { MetricsService } from '../metrics/metrics.service.js';
 import { MessagesService } from '../messages/messages.service.js';
 import { toChannel } from './channels.service.js';
 import { InboundListener } from './inbound-listener.js';
@@ -37,6 +38,7 @@ export class ChannelManager implements OnApplicationBootstrap, OnApplicationShut
     @Inject(ENV) private readonly env: Env,
     private readonly messages: MessagesService,
     private readonly events: AppEvents,
+    private readonly metrics: MetricsService,
   ) {}
 
   isRunning(channelId: string): boolean {
@@ -93,7 +95,15 @@ export class ChannelManager implements OnApplicationBootstrap, OnApplicationShut
   private async startListener(row: ChannelRow): Promise<void> {
     const cfg = row.config as InboundConfig;
     const listener = new InboundListener(
-      { port: cfg.port, bindAddress: this.env.MLLP_BIND_ADDRESS, allowlist: cfg.allowlist, name: row.id.slice(0, 8) },
+      {
+        port: cfg.port,
+        bindAddress: this.env.MLLP_BIND_ADDRESS,
+        allowlist: cfg.allowlist,
+        name: row.id.slice(0, 8),
+        ...(cfg.tls?.enabled && cfg.tls.cert && cfg.tls.key
+          ? { tls: { cert: cfg.tls.cert, key: cfg.tls.key, ca: cfg.tls.ca, requestCert: cfg.tls.requestCert } }
+          : {}),
+      },
       async ({ raw, remoteAddress }) => {
         // Persist first; only a committed row earns an AA. A failed insert → AR (nothing stored).
         let rec;
@@ -101,9 +111,12 @@ export class ChannelManager implements OnApplicationBootstrap, OnApplicationShut
           rec = await this.messages.recordInbound(row, raw, remoteAddress);
         } catch (e) {
           this.log.error({ channelId: row.id }, `Could not store inbound message: ${(e as Error).message}`);
+          this.metrics.ackFailure(row.id, 'inbound', 'AR');
           return 'AR';
         }
         this.events.emit('message', rec.message);
+        if (rec.message.status === 'received') this.metrics.messageReceived(rec.message);
+        if (rec.ack !== 'AA') this.metrics.ackFailure(row.id, 'inbound', rec.ack);
         return rec.ack;
       },
       this.log,
@@ -131,7 +144,7 @@ export class ChannelManager implements OnApplicationBootstrap, OnApplicationShut
       });
     }
     this.listeners.set(row.id, listener);
-    this.log.log({ channelId: row.id }, `Listening for "${row.name}" on ${this.env.MLLP_BIND_ADDRESS}:${cfg.port}`);
+    this.log.log({ channelId: row.id }, `Listening for "${row.name}" on ${this.env.MLLP_BIND_ADDRESS}:${cfg.port}${cfg.tls?.enabled ? ' (TLS)' : ''}`);
   }
 
   private async closeListener(id: string): Promise<void> {

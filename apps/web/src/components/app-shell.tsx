@@ -11,21 +11,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { authClient } from '@/lib/auth-client';
+import { useLiveEvents } from '@/lib/live';
 import { useHealth, useSettings } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { Logo } from './logo';
 import { ThemeToggle } from './theme-toggle';
 
-function NavItem({ to, icon, children, soon }: { to: string; icon: ReactNode; children: ReactNode; soon?: boolean }) {
-  if (soon) {
-    return (
-      <span className="flex h-9 cursor-default items-center gap-3 rounded-md px-3 text-sm text-muted-foreground/60">
-        {icon}
-        {children}
-        <span className="ml-auto rounded border px-1.5 text-[10px] uppercase tracking-wide">Soon</span>
-      </span>
-    );
-  }
+function NavItem({ to, icon, children }: { to: string; icon: ReactNode; children: ReactNode }) {
   return (
     <NavLink
       to={to}
@@ -105,7 +97,7 @@ function SidebarContent({ email, onNavigate }: { email: string; onNavigate?: () 
         <NavItem to="/channels" icon={<Network className="size-4" />}>
           Channels
         </NavItem>
-        <NavItem to="/messages" icon={<Inbox className="size-4" />} soon>
+        <NavItem to="/messages" icon={<Inbox className="size-4" />}>
           Messages
         </NavItem>
         <a
@@ -128,6 +120,8 @@ function SidebarContent({ email, onNavigate }: { email: string; onNavigate?: () 
 
 export function AppShell({ email }: { email: string }) {
   const [open, setOpen] = useState(false);
+  const qc = useQueryClient();
+  useLiveEvents(qc); // one SSE stream for the whole authenticated app
   return (
     <div className="min-h-svh bg-background">
       <aside className="fixed inset-y-0 left-0 hidden w-64 border-r bg-sidebar lg:block">

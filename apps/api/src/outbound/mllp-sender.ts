@@ -11,6 +11,10 @@ export interface SendParams {
   host: string;
   port: number;
   tls: boolean;
+  /** TLS only: CA PEM that signed the receiver's certificate. */
+  ca?: string | undefined;
+  /** TLS only: verify the receiver's certificate (default false, LAN receivers are often self-signed). */
+  rejectUnauthorized?: boolean | undefined;
   version: Hl7Version;
   /** Full HL7 message (segments separated by \r). */
   raw: string;
@@ -46,15 +50,15 @@ export class MllpSendError extends Error {
  * leak-free (node-hl7-client 4.1 was tried first: it opened two sockets per connection and
  * `close()` left them open, so it is only used for inbound).
  *
- * TLS: `tls.connect` with `rejectUnauthorized: false` (LAN receivers usually have self-signed
- * certificates); certificate pinning can be added to the channel config later.
+ * TLS: `tls.connect`; `rejectUnauthorized` defaults to false (LAN receivers usually have self-signed
+ * certificates) and can be switched on per channel, optionally with a `ca` PEM.
  */
 export function sendHl7(p: SendParams): Promise<SendResult> {
   return new Promise<SendResult>((resolve, reject) => {
     let settled = false;
     let buf = '';
     const socket: net.Socket = p.tls
-      ? tls.connect({ host: p.host, port: p.port, rejectUnauthorized: false, servername: net.isIP(p.host) ? undefined : p.host })
+      ? tls.connect({ host: p.host, port: p.port, rejectUnauthorized: p.rejectUnauthorized ?? false, ...(p.ca ? { ca: p.ca } : {}), servername: net.isIP(p.host) ? undefined : p.host })
       : net.connect({ host: p.host, port: p.port });
 
     const finish = (fn: () => void) => {

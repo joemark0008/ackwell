@@ -4,7 +4,13 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { setLiveStatus } from '@/lib/live-state';
 import { MessagesCard } from './messages-card';
+
+// Monaco needs a real browser; the dialog's editor is replaced by a <pre>.
+vi.mock('@/components/code-editor', () => ({
+  default: ({ value, language }: { value: string; language: string }) => <pre data-lang={language}>{value}</pre>,
+}));
 
 const channel: Channel = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -43,7 +49,7 @@ const detail: MessageDetail = {
 
 function mockApi(list: MessageList) {
   const fetchMock = vi.fn(async (url: string) => {
-    const body = url.startsWith(`/api/channels/${channel.id}/messages`) ? list : url.startsWith('/api/messages/') ? detail : {};
+    const body = url.startsWith(`/api/channels/${channel.id}/messages`) ? list : url === '/api/channels' ? [] : url.startsWith('/api/messages/') ? detail : {};
     return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -61,15 +67,27 @@ function renderCard() {
   );
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  setLiveStatus('off');
+});
 
 describe('MessagesCard', () => {
   it('shows the running empty state', async () => {
     mockApi({ items: [], nextCursor: null, total: 0 });
+    setLiveStatus('live');
     renderCard();
     expect(await screen.findByText('No messages yet')).toBeInTheDocument();
     expect(screen.getByText(/channel is listening/)).toBeInTheDocument();
     expect(screen.getByText('Live')).toBeInTheDocument();
+  });
+
+  it('shows the fallback indicator while the stream is down', async () => {
+    mockApi({ items: [], nextCursor: null, total: 0 });
+    renderCard();
+    expect(await screen.findByText('No messages yet')).toBeInTheDocument();
+    expect(screen.queryByText('Live')).not.toBeInTheDocument();
+    expect(screen.getByText(/Refreshing periodically/)).toBeInTheDocument();
   });
 
   it('lists messages and opens the raw/JSON dialog on click', async () => {

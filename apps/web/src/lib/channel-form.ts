@@ -21,6 +21,12 @@ export interface ChannelFormValues {
     port: string;
     host: string;
     tlsEnabled: boolean;
+    tlsCert: string; // inbound PEM
+    tlsKey: string; // inbound PEM; empty on edit = keep the stored key
+    tlsCa: string; // PEM, optional
+    tlsRequestCert: boolean; // inbound: verify client certs (needs CA)
+    tlsRejectUnauthorized: boolean; // outbound
+    tlsHasKey: boolean; // a key is already stored (edit); never holds the key itself
     allowlistText: string; // one IP/CIDR per line
     ackTimeoutMs: string;
     retryMaxAttempts: string;
@@ -43,6 +49,12 @@ export function emptyForm(direction: ChannelDirection, suggestedPort?: number): 
       port: direction === 'inbound' && suggestedPort ? String(suggestedPort) : direction === 'outbound' ? '2575' : '',
       host: '',
       tlsEnabled: false,
+      tlsCert: '',
+      tlsKey: '',
+      tlsCa: '',
+      tlsRequestCert: false,
+      tlsRejectUnauthorized: false,
+      tlsHasKey: false,
       allowlistText: '',
       ackTimeoutMs: '30000',
       retryMaxAttempts: '5',
@@ -59,7 +71,20 @@ export function formFromChannel(ch: Channel): ChannelFormValues {
   f.retentionDays = String(ch.retentionDays);
   const c = ch.config as Record<string, unknown>;
   f.config.port = String(c.port ?? '');
-  f.config.tlsEnabled = Boolean((c.tls as { enabled?: boolean } | undefined)?.enabled);
+  const tls = (c.tls ?? {}) as {
+    enabled?: boolean;
+    cert?: string;
+    ca?: string;
+    requestCert?: boolean;
+    hasKey?: boolean;
+    rejectUnauthorized?: boolean;
+  };
+  f.config.tlsEnabled = Boolean(tls.enabled);
+  f.config.tlsCert = tls.cert ?? '';
+  f.config.tlsCa = tls.ca ?? '';
+  f.config.tlsRequestCert = Boolean(tls.requestCert);
+  f.config.tlsRejectUnauthorized = Boolean(tls.rejectUnauthorized);
+  f.config.tlsHasKey = Boolean(tls.hasKey);
   if (ch.direction === 'inbound') {
     f.config.allowlistText = ((c.allowlist as string[] | undefined) ?? []).join('\n');
     if (ch.delivery) {
@@ -86,8 +111,27 @@ const num = (v: string): number | string | undefined => {
   return /^-?\d+(\.\d+)?$/.test(t) ? Number(t) : t;
 };
 
+/** TLS block per direction. Off stays `{ enabled: false }`; the key is sent only when typed. */
+function tlsPayload(v: ChannelFormValues) {
+  const c = v.config;
+  if (!c.tlsEnabled) return { enabled: false };
+  const ca = c.tlsCa.trim();
+  if (v.direction === 'outbound') {
+    return { enabled: true, ...(ca ? { ca } : {}), rejectUnauthorized: c.tlsRejectUnauthorized };
+  }
+  const cert = c.tlsCert.trim();
+  const key = c.tlsKey.trim();
+  return {
+    enabled: true,
+    ...(cert ? { cert } : {}),
+    ...(key ? { key } : {}),
+    ...(ca ? { ca } : {}),
+    requestCert: c.tlsRequestCert,
+  };
+}
+
 export function toPayload(v: ChannelFormValues): CreateChannelInput {
-  const tls = { enabled: v.config.tlsEnabled };
+  const tls = tlsPayload(v);
   const base = {
     name: v.name,
     hl7Version: v.hl7Version,
@@ -130,6 +174,11 @@ export function toPayload(v: ChannelFormValues): CreateChannelInput {
 export function fieldForPath(path: string): string {
   if (path.startsWith('config.allowlist')) return 'config.allowlistText';
   if (path === 'config.tls.enabled' || path === 'config.tls') return 'config.tlsEnabled';
+  if (path === 'config.tls.cert') return 'config.tlsCert';
+  if (path === 'config.tls.key') return 'config.tlsKey';
+  if (path === 'config.tls.ca') return 'config.tlsCa';
+  if (path === 'config.tls.requestCert') return 'config.tlsRequestCert';
+  if (path === 'config.tls.rejectUnauthorized') return 'config.tlsRejectUnauthorized';
   if (path === 'config.retry.maxAttempts') return 'config.retryMaxAttempts';
   if (path === 'config.retry.backoffSeconds') return 'config.retryBackoffSeconds';
   return path;
@@ -144,9 +193,16 @@ const friendly = (msg: string) =>
     .replace(/^Too big: expected number to be <=(\d+)$/, 'Must be at most $1')
     .replace(/^Invalid URL$/, 'Enter a valid http(s) URL');
 
+const KEY_PLACEHOLDER = '-----BEGIN PRIVATE KEY-----\nstored\n-----END PRIVATE KEY-----';
+
 /** RHF resolver backed by the shared API schema (same rules the server enforces). */
 export const channelResolver: Resolver<ChannelFormValues> = async (values) => {
-  const r = createChannelSchema.safeParse(toPayload(values));
+  const payload = toPayload(values) as { direction: string; config: { tls: Record<string, unknown> } };
+  // Edit with a stored key and no new key typed: the API keeps it, so validate as if present.
+  if (payload.direction === 'inbound' && payload.config.tls.enabled && !payload.config.tls.key && values.config.tlsHasKey) {
+    payload.config.tls = { ...payload.config.tls, key: KEY_PLACEHOLDER };
+  }
+  const r = createChannelSchema.safeParse(payload);
   if (r.success) return { values, errors: {} };
   const errors: Record<string, { type: string; message: string }> = {};
   for (const issue of r.error.issues) {

@@ -3,6 +3,7 @@ import {
   createChannelSchema,
   isPortInRange,
   type Channel,
+  type InboundConfig,
   type CreateChannel,
   type CreateChannelResponse,
   type UpdateChannel,
@@ -70,12 +71,13 @@ export class ChannelsService {
     }
 
     // Re-validate the merged channel with the full create schema (applies defaults too).
+    const config = patch.config === undefined ? row.config : this.carryOverTlsKey(patch.config, row);
     const merged = {
       name: patch.name ?? row.name,
       direction: row.direction,
       hl7Version: patch.hl7Version ?? row.hl7Version,
       retentionDays: patch.retentionDays ?? row.retentionDays,
-      config: patch.config ?? row.config,
+      config,
       ...(row.direction === 'inbound' ? { delivery: patch.delivery ?? row.delivery } : {}),
     };
     if (row.direction === 'outbound' && patch.delivery) {
@@ -118,6 +120,20 @@ export class ChannelsService {
       });
     }
     await this.db.delete(channels).where(eq(channels.id, id));
+  }
+
+  /**
+   * PATCH config replaces the stored one, but the private key is never returned to clients, so an
+   * update that enables TLS without a `key` keeps the stored key. `hasKey` (response-only) is dropped.
+   */
+  private carryOverTlsKey(config: Record<string, unknown>, row: ChannelRow): Record<string, unknown> {
+    if (row.direction !== 'inbound') return config;
+    const tls = config.tls;
+    if (!tls || typeof tls !== 'object') return config;
+    const { hasKey: _hasKey, ...rest } = tls as Record<string, unknown>;
+    const stored = (row.config as InboundConfig).tls?.key;
+    if (rest.key === undefined && rest.enabled === true && stored) rest.key = stored;
+    return { ...config, tls: rest };
   }
 
   private async getRow(id: string): Promise<ChannelRow> {
@@ -165,9 +181,17 @@ export function toChannel(row: ChannelRow): Channel {
     status: row.status,
     hl7Version: row.hl7Version as Channel['hl7Version'],
     retentionDays: row.retentionDays,
-    config: row.config,
+    config: publicConfig(row.config),
     delivery: row.delivery ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+/** Strips secrets from a stored config: the inbound TLS private key becomes `hasKey`. */
+function publicConfig(config: ChannelRow['config']): Channel['config'] {
+  if (!('allowlist' in config)) return config;
+  const { key, ...tls } = config.tls ?? { enabled: false };
+  if (!tls.enabled && !key && !tls.cert && !tls.ca) return { ...config, tls: { enabled: false } };
+  return { ...config, tls: { ...tls, hasKey: Boolean(key) } };
 }

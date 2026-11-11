@@ -60,3 +60,33 @@ describe('port range', () => {
     expect(() => parsePortRange('0-10')).toThrow();
   });
 });
+
+describe('tls config', () => {
+  const pem = '-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----';
+  const key = '-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----';
+  const ch = (tls: unknown) => ({ ...inbound, config: { port: 6001, tls } });
+
+  it('requires cert and key when enabled', () => {
+    expect(createChannelSchema.safeParse(ch({ enabled: true })).success).toBe(false);
+    expect(createChannelSchema.safeParse(ch({ enabled: true, cert: pem })).success).toBe(false);
+    expect(createChannelSchema.safeParse(ch({ enabled: true, cert: pem, key })).success).toBe(true);
+    expect(createChannelSchema.safeParse(ch({ enabled: false })).success).toBe(true);
+  });
+  it('rejects non-PEM text and requestCert without ca', () => {
+    expect(createChannelSchema.safeParse(ch({ enabled: true, cert: 'x', key })).success).toBe(false);
+    expect(createChannelSchema.safeParse(ch({ enabled: true, cert: pem, key, requestCert: true })).success).toBe(false);
+    expect(createChannelSchema.safeParse(ch({ enabled: true, cert: pem, key, requestCert: true, ca: pem })).success).toBe(true);
+  });
+  it('outbound tls defaults rejectUnauthorized to false', () => {
+    const r = createChannelSchema.parse({ name: 'o', direction: 'outbound', config: { host: 'h', port: 1, tls: { enabled: true } } });
+    expect(r.direction === 'outbound' && r.config.tls).toEqual({ enabled: true, rejectUnauthorized: false });
+  });
+});
+
+describe('global message query', () => {
+  it('adds channelId and direction', async () => {
+    const { globalMessageListQuerySchema } = await import('./message');
+    expect(globalMessageListQuerySchema.parse({ direction: 'inbound' }).limit).toBe(50);
+    expect(globalMessageListQuerySchema.safeParse({ channelId: 'x' }).success).toBe(false);
+  });
+});

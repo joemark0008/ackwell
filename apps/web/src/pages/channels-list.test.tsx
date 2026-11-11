@@ -63,7 +63,7 @@ describe('ChannelsListPage', () => {
         name: 'Orders out',
         direction: 'outbound',
         delivery: null,
-        config: { host: 'lis.local', port: 2575, tls: { enabled: false }, ackTimeoutMs: 30000, retry: { maxAttempts: 5, backoffSeconds: 10 } },
+        config: { host: 'lis.local', port: 2575, tls: { enabled: false, rejectUnauthorized: true }, ackTimeoutMs: 30000, retry: { maxAttempts: 5, backoffSeconds: 10 } },
       }),
     ]);
     renderPage();

@@ -124,7 +124,12 @@ export class DeliveryService implements OnApplicationBootstrap {
     const attempt = (prev?.n ?? 0) + 1;
     const triesThisJob = job.retryCount + 1;
 
-    await this.db.update(messages).set({ status: 'processing' }).where(eq(messages.id, messageId));
+    const [processing] = await this.db
+      .update(messages)
+      .set({ status: 'processing' })
+      .where(eq(messages.id, messageId))
+      .returning();
+    if (processing) this.events.emit('message', toSummary(processing));
     const result = await adapter.deliver({ channel, delivery, message, attempt });
     await this.db.insert(deliveryAttempts).values({
       messageId,

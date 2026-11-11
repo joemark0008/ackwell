@@ -3,7 +3,7 @@
 Status keys: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 Update this file whenever a task changes state. Each line gives its owner, and links to its report in `docs/reports/` once done.
 
-**Now:** Phases 1, 1b, **2 (inbound), 5 (webhook delivery), 3 (outbound) and 6 (retention) done and LIVE** at https://ackwell.joemarkgimeno.com. **Next: Phase 7 Hardening (TLS for listeners/outbound certs, metrics, SSE live feed), then Phase 8 QA and Phase 9 production deployment (Dockerfile).**
+**Now:** Phases 1, 1b, **2 (inbound), 5 (webhook delivery), 3 (outbound) and 6 (retention) done and LIVE** at https://ackwell.joemarkgimeno.com. **Phase 7 Hardening built and tested 2026-11-11 (SSE, global Messages page, Monaco, TLS, metrics) — live on dev; authenticated browser check of SSE/Messages/Monaco still pending (lead had no admin password). Next: Phase 8 QA, then Phase 9 production deployment (Dockerfile).**
 
 ---
 
@@ -16,8 +16,10 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 6. `[x]` **backend-dev:** Phase 5 — pg-boss, `DeliveryAdapter` + signed webhook, secrets, resend (2026-11-11, [report](reports/2026-11-11-backend-phase5-delivery.md)).
 7. `[x]` **backend-dev:** Phase 3 — outbound send endpoint, API keys, strict-FIFO queue, MLLP sender, ACK tracking (2026-11-11, [report](reports/2026-11-11-backend-phase3-outbound.md)).
 9. `[x]` **backend-dev:** Phase 6 — retention: hourly pg-boss schedule, batched deletes, protected statuses (2026-11-11, [report](reports/2026-11-11-backend-phase6-retention.md)).
-10. `[ ]` **backend-dev + frontend-dev:** Phase 7 — Hardening: TLS for inbound listeners (cert config), outbound CA/pinning, prom-client metrics, SSE live feed (replace polling), Monaco viewer.
-8. `[ ]` **frontend-dev:** SSE live feed (replace 4 s polling), Monaco in the message dialog, test-send box, resend.
+10. `[x]` **backend-dev:** Phase 7 — `GET /api/events` (SSE from `AppEvents`), `GET /api/messages` (cross-channel log), TLS for inbound listeners + outbound CA, prom-client `/metrics` (done 2026-11-11, [report](reports/2026-11-11-backend-phase7-hardening.md)).
+11. `[x]` **frontend-dev:** Phase 7 — SSE client replacing polling, **Messages** page, Monaco viewer, TLS form fields (2026-11-11, [report](reports/2026-11-11-frontend-phase7.md)).
+12. `[~]` **lead:** HANDOVER/NEXT updated; API-side live smoke done (metrics, 401s, MLLP → ACK). **Pending:** signed-in browser check of `/messages`, SSE through Cloudflare and Monaco (needs the admin password or a browser session).
+13. `[ ]` **qa-engineer:** Phase 8 — test plan, fixtures, must-cover scenarios, Playwright flow on the live site.
 
 ---
 
@@ -98,12 +100,18 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 - [x] Tests: retention e2e 4 (cutoffs per channel, protected statuses, attempts cascade, 2,350-row batching, auth)
 - [x] Report → [reports/2026-11-11-backend-phase6-retention.md](reports/2026-11-11-backend-phase6-retention.md)
 
-## Phase 7 — Hardening (owner: backend-dev + frontend-dev)
+## Phase 7 — Hardening (owner: backend-dev + frontend-dev) — DONE 2026-11-11 (browser check pending)
 - [x] Per-channel API keys (hashed, label, last used, revoke) + UI (done in Phase 3)
 - [x] IP allowlist on MLLP connect (done in Phase 2)
-- [ ] TLS for inbound listeners and outbound connections
-- [ ] Metrics (prom-client): messages/min, ACK failures, queue depth
-- [ ] SSE for channel status + live feed (if not done in Phase 4)
+- [x] **SSE:** `GET /api/events[?channelId]` (session auth; `message` + `channel.status` events, `retry: 3000`, `: ping` every 15 s, listeners removed on disconnect); web `useLiveEvents` patches the TanStack caches, polls 4 s only while the stream is down, refetches lists after a reconnect
+- [x] **Global message log:** `GET /api/messages` (channel-log filters + `channelId`, `direction`); web `/messages` page (shared `MessageLog` component, Channel column, channel/direction filters); sidebar "Messages" is a real link
+- [x] **Monaco** in the message dialog (bundled locally, lazy chunk, `hl7` Monarch language, light/dark themes, JSON folding; side-by-side ≥ 1024 px, tabs below)
+- [x] TLS for inbound listeners (`cert`/`key`/`ca`/`requestCert` PEM in config, key never returned, kept on update) and outbound (`ca`, `rejectUnauthorized` default false); form fields + detail card
+- [x] Metrics (prom-client) at `GET /metrics` (optional `METRICS_TOKEN`): `ackwell_messages_total`, `ackwell_ack_failures_total`, `ackwell_queue_depth`, `ackwell_channel_status` + Node defaults; `/metrics` added to the Vite dev proxy
+- [x] Tests: API SSE 5 + global list 5 + TLS 10 + metrics 7; schemas TLS/global-query cases; web live hook 7, Messages page 3, TLS form 6
+- [x] Reports → [backend](reports/2026-11-11-backend-phase7-hardening.md), [frontend](reports/2026-11-11-frontend-phase7.md); HANDOVER §3/§7 + NEXT updated
+- [ ] Signed-in browser check on the live site: `/messages` row appears on an MLLP send without reload (SSE through Cloudflare/Traefik), Monaco renders, no external (CDN) request in the network tab
+- [ ] Follow-ups (not blocking): encrypt the inbound TLS private key at rest; log inbound TLS handshake failures
 
 ## Phase 8 — QA (owner: qa-engineer)
 - [ ] Test plan in `docs/qa/test-plan.md`
@@ -140,3 +148,4 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 | 2026-11-11 | Phase 3: send endpoint, API keys, strict-FIFO outbound queue, raw MLLP sender, ACK tracking, test-send + keys UI; API 50/50, web 14/14; live loopback sends verified | main session | [report](reports/2026-11-11-backend-phase3-outbound.md) |
 | 2026-11-11 | First-run setup wizard (token in API log → create admin → signed in), brand assets + favicons, README | main session | — |
 | 2026-11-11 | Phase 6: hourly retention schedule, batched deletes, protected statuses, status/run-now routes; API 54/54; live schedule verified | main session | [report](reports/2026-11-11-backend-phase6-retention.md) |
+| 2026-11-11 | Phase 7: SSE `/api/events`, global `/api/messages` + Messages page, Monaco viewer, TLS listeners/outbound CA + form, `/metrics`; API 91/91, schemas 25/25, web 33/33; live: metrics + MLLP smoke `SSE0001` ok, browser check pending | backend-dev + frontend-dev | [backend](reports/2026-11-11-backend-phase7-hardening.md) · [frontend](reports/2026-11-11-frontend-phase7.md) |

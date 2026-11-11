@@ -24,6 +24,8 @@ export interface InboundListenerOptions {
   allowlist: readonly string[];
   /** Label for log lines. */
   name: string;
+  /** PEM material for a TLS listener (never logged). `ca` + `requestCert` verify client certificates. */
+  tls?: { cert: string; key: string; ca?: string; requestCert?: boolean };
 }
 
 /**
@@ -49,7 +51,19 @@ export class InboundListener {
     private readonly log: Logger,
   ) {
     this.allowlist = new Allowlist(opts.allowlist);
-    this.server = new Server({ bindAddress: opts.bindAddress });
+    this.server = new Server({
+      bindAddress: opts.bindAddress,
+      ...(opts.tls
+        ? {
+            tls: {
+              cert: opts.tls.cert,
+              key: opts.tls.key,
+              ...(opts.tls.ca ? { ca: opts.tls.ca } : {}),
+              requestCert: opts.tls.requestCert ?? false,
+            },
+          }
+        : {}),
+    });
   }
 
   get port(): number {

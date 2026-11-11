@@ -1,5 +1,6 @@
 import type { MessageDetail } from '@ackwell/schemas';
 import { AlertCircle, Loader2, RotateCw } from 'lucide-react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { AckBadge, MessageStatusBadge } from '@/components/badges';
 import { CopyButton } from '@/components/copy-button';
@@ -16,19 +17,28 @@ export function hl7Lines(raw: string): string {
   return raw.replace(/\r\n|\r|\n/g, '\n').replace(/\n$/, '');
 }
 
+const CodeEditor = lazy(() => import('@/components/code-editor'));
+
 function Pane({ title, text, lang }: { title: string; text: string; lang: 'hl7' | 'json' }) {
+  const fallback = (
+    <pre
+      data-lang={lang}
+      className="h-full min-h-0 overflow-auto p-3 font-mono text-[12px] leading-relaxed whitespace-pre text-foreground"
+    >
+      {text}
+    </pre>
+  );
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950">
-      <div className="flex shrink-0 items-center justify-between border-b border-zinc-800 py-1 pr-1 pl-3 text-xs text-zinc-400 [&_button]:text-zinc-300 [&_button:hover]:bg-white/10">
+    <div className="flex h-72 min-h-0 flex-col overflow-hidden rounded-lg border bg-card lg:h-96">
+      <div className="flex shrink-0 items-center justify-between border-b py-1 pr-1 pl-3 text-xs text-muted-foreground">
         {title}
         <CopyButton value={text} label={`Copy ${title}`} />
       </div>
-      <pre
-        data-lang={lang}
-        className="min-h-0 flex-1 overflow-auto p-3 font-mono text-[12px] leading-relaxed whitespace-pre text-zinc-200"
-      >
-        {text}
-      </pre>
+      <div className="min-h-0 flex-1">
+        <Suspense fallback={fallback}>
+          <CodeEditor value={text} language={lang} />
+        </Suspense>
+      </div>
     </div>
   );
 }
@@ -61,7 +71,21 @@ function ResendButton({ m }: { m: MessageDetail }) {
   );
 }
 
+function useWide() {
+  const query = '(min-width: 1024px)';
+  const [wide, setWide] = useState(() => typeof matchMedia === 'function' && matchMedia(query).matches);
+  useEffect(() => {
+    if (typeof matchMedia !== 'function') return;
+    const mq = matchMedia(query);
+    const on = () => setWide(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return wide;
+}
+
 function Body({ m }: { m: MessageDetail }) {
+  const wide = useWide();
   const raw = m.raw ? hl7Lines(m.raw) : '';
   const json = m.json ? JSON.stringify(m.json, null, 2) : '';
   return (
@@ -104,23 +128,26 @@ function Body({ m }: { m: MessageDetail }) {
         </div>
       )}
 
-      {/* Wide screens: side by side. Narrow: tabs. */}
-      <div className="hidden min-h-0 flex-1 grid-cols-2 gap-3 lg:grid">
-        <Pane title="Raw HL7" text={raw} lang="hl7" />
-        <Pane title="JSON" text={json} lang="json" />
-      </div>
-      <Tabs defaultValue="hl7" className="flex min-h-0 flex-1 flex-col lg:hidden">
-        <TabsList>
-          <TabsTrigger value="hl7">Raw HL7</TabsTrigger>
-          <TabsTrigger value="json">JSON</TabsTrigger>
-        </TabsList>
-        <TabsContent value="hl7" className="flex min-h-0 flex-1 flex-col">
+      {/* Wide screens: side by side. Narrow: tabs (only one layout is mounted, so only the visible editors exist). */}
+      {wide ? (
+        <div className="grid min-h-0 flex-1 grid-cols-2 gap-3">
           <Pane title="Raw HL7" text={raw} lang="hl7" />
-        </TabsContent>
-        <TabsContent value="json" className="flex min-h-0 flex-1 flex-col">
           <Pane title="JSON" text={json} lang="json" />
-        </TabsContent>
-      </Tabs>
+        </div>
+      ) : (
+        <Tabs defaultValue="hl7" className="flex min-h-0 flex-1 flex-col">
+          <TabsList>
+            <TabsTrigger value="hl7">Raw HL7</TabsTrigger>
+            <TabsTrigger value="json">JSON</TabsTrigger>
+          </TabsList>
+          <TabsContent value="hl7" className="flex min-h-0 flex-1 flex-col">
+            <Pane title="Raw HL7" text={raw} lang="hl7" />
+          </TabsContent>
+          <TabsContent value="json" className="flex min-h-0 flex-1 flex-col">
+            <Pane title="JSON" text={json} lang="json" />
+          </TabsContent>
+        </Tabs>
+      )}
     </>
   );
 }
