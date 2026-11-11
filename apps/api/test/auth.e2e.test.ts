@@ -24,6 +24,13 @@ describe('auth', () => {
     await http().get('/health').expect(200);
   });
 
+  it('does not need the setup wizard when the admin was seeded', async () => {
+    const r = await http().get('/api/setup/status').expect(200);
+    expect(r.body).toEqual({ needed: false });
+    const v = await http().post('/api/setup/verify').send({ token: 'AAAAA-AAAAA-AAAAA-AAAAA' }).expect(409);
+    expect(v.body.code).toBe('SETUP_DONE');
+  });
+
   it('seeded the first admin exactly once', async () => {
     const { AdminSeedService } = await import('../src/auth/admin-seed.service.js');
     await ctx.app.get(AdminSeedService).onApplicationBootstrap(); // second run is a no-op

@@ -5,6 +5,8 @@ import { DB, type Db } from '../db/db.js';
 import { AdminSeedService } from './admin-seed.service.js';
 import { AUTH, createAuth } from './auth.js';
 import { SessionGuard } from './session.guard.js';
+import { SetupController } from './setup.controller.js';
+import { SetupService } from './setup.service.js';
 
 @Global()
 @Module({
@@ -12,7 +14,9 @@ import { SessionGuard } from './session.guard.js';
     { provide: AUTH, inject: [DB, ENV], useFactory: (db: Db, env: Env) => createAuth(db, env) },
     { provide: APP_GUARD, useClass: SessionGuard },
     AdminSeedService,
+    SetupService,
   ],
-  exports: [AUTH],
+  controllers: [SetupController],
+  exports: [AUTH, SetupService],
 })
 export class AuthModule {}

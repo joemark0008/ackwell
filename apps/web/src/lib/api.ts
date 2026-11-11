@@ -11,6 +11,9 @@ import type {
   NewApiKey,
   NewWebhookSecret,
   SendRequestInput,
+  SetupResult,
+  SetupStatus,
+  CompleteSetupInput,
   UpdateChannel,
   WebhookSecret,
 } from '@ackwell/schemas';
@@ -48,6 +51,11 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
 
 export const api = {
   health: () => request<{ status: string; db: string }>('GET', '/health'),
+  setup: {
+    status: () => request<SetupStatus>('GET', '/api/setup/status'),
+    verify: (token: string) => request<void>('POST', '/api/setup/verify', { token }),
+    complete: (input: CompleteSetupInput) => request<SetupResult>('POST', '/api/setup/complete', input),
+  },
   settings: () => request<AppSettings>('GET', '/api/settings'),
   channels: {
     list: () => request<Channel[]>('GET', '/api/channels'),

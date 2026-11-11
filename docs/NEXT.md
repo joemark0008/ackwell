@@ -49,6 +49,7 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 - [x] Better Auth 1.7 in NestJS (email + password, public sign-up disabled, sessions in Postgres, 12 h), mounted at `/api/auth/*` before the JSON parser; global `SessionGuard` on all routes, `@Public()` opt-out (used by `/health`; the API-key send endpoint will use it too)
 - [x] Migration `0001_auth` (user, session, account, verification — generated with `@better-auth/cli`)
 - [x] First admin user from env `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` (only while the user table is empty)
+- [x] First-run **setup wizard** (2026-11-11): when no users exist the API logs a one-time token; `/api/setup/{status,verify,complete}` (public), web gate shows the 3-step wizard, auto sign-in after creation; API e2e 7, web 2
 - [x] Login page + session gate + sign-out in the web app
 - [x] Tests: 401 without a session, wrong password 401, sign-up disabled, untrusted origin 403, login → API → logout → 401, seed runs once (API 19/19)
 - [x] Live: sign-in, session, channels 200 / 401 without cookie, sign-out — verified 2026-11-11; user logged in
@@ -137,4 +138,5 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 | 2026-11-11 | Phase 2: HL7↔JSON codec, channel manager + MLLP listeners, messages API, UI start/stop + message log + dialog; schemas 21/21, API 27/27, web 10/10; live MLLP smoke on 172.16.10.30:6100 | main session | [report](reports/2026-11-11-backend-phase2-inbound.md) |
 | 2026-11-11 | Phase 5: pg-boss queue, DeliveryAdapter registry, signed webhook adapter (rotation, backoff), secrets API + UI, resend; API 41/41, web 12/12; live signed delivery verified | main session | [report](reports/2026-11-11-backend-phase5-delivery.md) |
 | 2026-11-11 | Phase 3: send endpoint, API keys, strict-FIFO outbound queue, raw MLLP sender, ACK tracking, test-send + keys UI; API 50/50, web 14/14; live loopback sends verified | main session | [report](reports/2026-11-11-backend-phase3-outbound.md) |
+| 2026-11-11 | First-run setup wizard (token in API log → create admin → signed in), brand assets + favicons, README | main session | — |
 | 2026-11-11 | Phase 6: hourly retention schedule, batched deletes, protected statuses, status/run-now routes; API 54/54; live schedule verified | main session | [report](reports/2026-11-11-backend-phase6-retention.md) |

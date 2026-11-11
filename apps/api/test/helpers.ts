@@ -30,6 +30,8 @@ export async function startApp(
     SEED_ADMIN_PASSWORD: ADMIN.password,
     ...env,
   });
+  // Passing '' for a variable removes it (e.g. to boot without the admin seed).
+  for (const [k, v] of Object.entries(env)) if (v === '') delete process.env[k];
   const { runMigrations } = await import('../src/db/db.js');
   await runMigrations(process.env.DATABASE_URL!);
   const { AppModule } = await import('../src/app.module.js');

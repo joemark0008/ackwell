@@ -68,7 +68,7 @@ For a laptop set `DATABASE_URL=postgres://ackwell:ackwell@localhost:5432/ackwell
 | `PORT` | API HTTP port | `3000` |
 | `APP_URL` | Public base URL (auth trusted origin, links) | `http://localhost:3000` |
 | `BETTER_AUTH_SECRET` | Session signing secret, 32+ chars | required |
-| `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | First admin, created only while the user table is empty | unset |
+| `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | Optional unattended first admin; unset = setup wizard with a token from the log | unset |
 | `MLLP_PORT_RANGE` | Ports inbound channels may listen on | `6100-6150` |
 | `MLLP_ADVERTISED_HOST` | Host shown to senders in the UI | `localhost` |
 | `MLLP_BIND_ADDRESS` | Address listeners bind to | `0.0.0.0` |
@@ -84,7 +84,9 @@ npm install
 npm run dev
 ```
 
-Turborepo builds `packages/schemas` first, then runs the API in watch mode on `:3000` and Vite on `:5173`. Vite proxies `/api` and `/health` to the API, so open **http://localhost:5173** and sign in with the seeded admin. Migrations run automatically on API start.
+Turborepo builds `packages/schemas` first, then runs the API in watch mode on `:3000` and Vite on `:5173`. Vite proxies `/api` and `/health` to the API, so open **http://localhost:5173**. Migrations run automatically on API start.
+
+**First admin.** With no users in the database the app shows a setup wizard instead of the login page. The API log prints a one-time token in a box headed `Ackwell first-run setup`; enter it in the wizard, choose the admin email and password, and you are signed in. The token changes on every restart and after five wrong attempts. To skip the wizard (unattended installs), set `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` before the first start.
 
 Useful URLs: `/api/docs` (Swagger), `/health`.
 
@@ -149,6 +151,8 @@ The app follows the server rules in `/root/project/CLAUDE.md`: everything deploy
 After a change to `turbo.json`, dependencies or env vars, restart the service (`POST /api/v1/services/<uuid>/restart`); source edits hot-reload. Logs: `docker logs app-<service-uuid>`.
 
 Verify: `curl -I https://ackwell.joemarkgimeno.com` returns the app, `/health` is `ok`, and a test message to a running listener gets an `AA` ACK.
+
+**First run on a fresh deployment.** Open the site: with an empty database it shows the setup wizard. Get the token from the service's logs in Coolify (or `docker logs app-<service-uuid>`), look for the `Ackwell first-run setup` box, paste the token, create the admin. Only someone who can read the server log can do this, which is the whole point. `GET /api/setup/status` tells whether the wizard is still open.
 
 ### Production image (planned, Phase 9)
 
