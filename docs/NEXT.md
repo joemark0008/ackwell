@@ -3,13 +3,13 @@
 Status keys: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 Update this file whenever a task changes state. Each line gives its owner, and links to its report in `docs/reports/` once done.
 
-**Now:** Plan approved 2026-11-11. Phase 1 (core) **done locally** (tests green). **Blocked:** Coolify `ackwell-db` + service `ackwell` need an admin token or dashboard action (HANDOVER §4b-1).
+**Now:** Plan approved 2026-11-11. Phase 1 (core) **done locally** (tests green). **LIVE** on dev at https://ackwell.joemarkgimeno.com (hot reload). **Up next: Phase 1b (login).**
 
 ---
 
 ## Up next (in order)
-1. `[!]` **User:** create Coolify `ackwell-db` + service `ackwell` (or provide an admin token) — HANDOVER §4b-1.
-2. `[ ]` **lead:** set env vars, deploy the hot-reload service, verify `curl -I https://ackwell.joemarkgimeno.com` + `/health`.
+1. `[x]` Coolify `ackwell-db` + service `ackwell` created (admin token).
+2. `[x]` Env vars set, deployed, verified: `curl -I` 200, `/health` ok, live CRUD smoke test.
 3. `[ ]` **backend-dev + frontend-dev:** Phase 1b — auth (Better Auth) so the public dev site is not open before listeners exist.
 4. `[x]` **User:** MLLP host-port exception approved; senders use LAN IP `172.16.10.30`, range 6100–6150.
 5. `[ ]` **backend-dev:** Phase 2 — inbound listeners.
@@ -22,11 +22,11 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 - [x] Create `docs/HANDOVER.md` and `docs/NEXT.md`
 - [x] User approves the plan (2026-11-11: hot reload, `ackwell`, Coolify DB)
 - [x] MLLP ports: range 6100–6150 published on LAN IP 172.16.10.30 (approved 2026-11-11)
-- [~] User answers HANDOVER §4b (Coolify admin action still open)
+- [x] User answers HANDOVER §4b (Git remote optional, still open)
 - [x] Check in Coolify that `ackwell` is free (no other resource uses the subdomain)
 - [x] `git init` + `.gitignore` + `.env.example` (variables from PLAN → Environment variables)
 - [x] Dev hot-reload `docker-compose.yml`
-- [!] Coolify Postgres `ackwell-db` + service `ackwell` — blocked: token cannot place resources on the Coolify host
+- [x] Coolify Postgres `ackwell-db` (daily backup 02:00, keep 14) + hot-reload service `ackwell`, deployed and live
 
 ## Phase 1 — Core (owner: backend-dev)
 - [x] npm workspaces + Turborepo: `apps/api`, `apps/web`, `packages/schemas`
@@ -99,7 +99,7 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 ## Phase 9 — Deployment (owner: lead + backend-dev)
 - [ ] Multi-stage `Dockerfile` (web + api in one image), migrations on start, graceful shutdown
 - [ ] `docker-compose.yml` (app + optional postgres), `.env.example`
-- [ ] Coolify: Postgres `ackwell-db` (+ scheduled backups) in `dev-projects`
+- [x] Coolify: Postgres `ackwell-db` (+ scheduled backups) in `dev-projects`
 - [ ] Coolify: resource `ackwell` in `dev-projects` / `development`, domain `https://ackwell.joemarkgimeno.com`, env vars in Coolify
 - [ ] MLLP port range 6100–6150 on 172.16.10.30 in the prod compose too (dev compose done)
 - [ ] `curl -I https://ackwell.joemarkgimeno.com` → app (not 404/502); send a test HL7 message to a live listener
@@ -116,3 +116,4 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 |---|---|---|---|
 | 2026-11-11 | `.claude/agents` (backend-dev, frontend-dev, qa-engineer), HANDOVER, NEXT | main session | — |
 | 2026-11-11 | Plan approved; git init, monorepo, Phase 1 core (schemas, Drizzle, channel CRUD, health, Swagger), tests 19/19, dev compose | main session | — |
+| 2026-11-11 | Coolify `ackwell-db` + hot-reload service deployed; live at https://ackwell.joemarkgimeno.com | main session | — |

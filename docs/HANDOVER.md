@@ -4,8 +4,8 @@ Read this first when you pick up the project (new session, new agent, or a new p
 It describes **where things stand right now**. Update it at the end of every work session.
 
 **Last updated:** 2026-11-11 · **By:** main session
-**Current phase:** Plan **APPROVED** 2026-11-11. Phase 1 (core) code **done and tested locally**. **Blocked:** Coolify DB + service not created — the API token is project-scoped and Coolify refuses to place resources on the Coolify host (§4b).
-**Live (dev):** not deployed yet (blocked). Subdomain confirmed free: https://ackwell.joemarkgimeno.com
+**Current phase:** Plan **APPROVED** 2026-11-11. Phase 1 (core) **done and LIVE on dev** (hot reload). **Next: Phase 1b (login)** before Phase 2 opens MLLP listeners.
+**Live (dev):** https://ackwell.joemarkgimeno.com (`curl -I` 200, `/health` ok, `/api/docs` 200). MLLP: `172.16.10.30:6100-6150` (LAN only).
 
 ---
 
@@ -33,8 +33,8 @@ Ackwell is a full-stack app for HL7 v2 channels. An **inbound channel** is an ML
 | Frontend (`apps/web`) | Placeholder only (Vite 8 + React 19 + Tailwind 4 + TanStack Query): shows API health + channel list. Real UI = Phase 4. |
 | Tests | schemas 7/7, API e2e (Vitest + Testcontainers Postgres) 12/12, typecheck clean, `nest build` + `vite build` OK |
 | Dev compose | `docker-compose.yml`: one `node:22-alpine` container running `turbo dev` (vite :5173 proxies `/api` + `/health` to nest :3000). MLLP ports **not** published yet. |
-| Coolify DB `ackwell-db` | **Not created — blocked** (token not admin) |
-| Coolify service `ackwell` | **Not created — blocked** (same). Subdomain `ackwell` checked free. |
+| Coolify DB `ackwell-db` | uuid `zcukcdfdgfw5wveafh91vqwd`, Postgres 16, internal only, healthy. Daily backup 02:00, keep 14. |
+| Coolify service `ackwell` | uuid `d3tdtacn0nqgdnanacqwv1pt`, hot reload, predefined network on, URL `https://ackwell.joemarkgimeno.com:5173`, env `DATABASE_URL` + `BETTER_AUTH_SECRET` set in Coolify. Container `app-d3tdtacn0nqgdnanacqwv1pt` publishes `172.16.10.30:6100-6150`. **LIVE.** |
 | Git repo | `git init` on `main`, local commits only (no remote) |
 
 ### How to run tests (Node is not on the host)
@@ -60,16 +60,16 @@ New migration after a schema change: `cd apps/api && npx drizzle-kit generate --
 - **MLLP ports (2026-11-11):** publishing the MLLP range on the host is approved for `ackwell` (exception to `/root/project/CLAUDE.md` §2). Senders use the machine's **LAN IP `172.16.10.30`**, not the Cloudflare domain. The range is **6100–6150**, not 6000–6050, because Coolify itself listens on 6001–6002. Bound to the LAN IP only (`MLLP_BIND_IP`).
 
 ## 4b. Open items for the user
-1. **Coolify admin action needed (blocker).** The provided API token is limited to selected projects, and Coolify answers *"Only an admin can place resources on the server that runs Coolify"* when creating the DB or the service. Either give an admin-level token for one session, or create these two in the dashboard (dev-projects → development, server `localhost`):
-   - PostgreSQL 16 `ackwell-db` (user `ackwell`, db `ackwell`, not public, daily backup).
-   - Docker Compose (empty) service `ackwell` with `docker-compose.yml` from this folder, URL `https://ackwell.joemarkgimeno.com:5173`, "Connect to Predefined Network" on, env `DATABASE_URL` (= `ackwell-db` internal URL) and `BETTER_AUTH_SECRET`.
-   After that, the scoped token should be able to manage them (env vars, deploy, restart).
+1. ~~Coolify admin action~~ — done 2026-11-11 with an admin token (DB + service created via API).
 2. **Git remote** (optional for dev; needed later for CI/auto-deploy of the production image).
 
 ## 5. Environment notes
 - Node is **not** installed on the host. Run npm, drizzle-kit and tests in `node:22-alpine` containers.
 - The Coolify API token comes from the `COOLIFY_API_TOKEN` env var. Never write it to a file.
 - MLLP range **6100–6150** on `172.16.10.30` (env `MLLP_PORT_RANGE`, `MLLP_BIND_IP`).
+- Debug: `docker logs app-d3tdtacn0nqgdnanacqwv1pt`. Restart: `POST /api/v1/services/d3tdtacn0nqgdnanacqwv1pt/restart`. A change to `turbo.json`, `package.json` deps or env vars needs a restart; source edits hot-reload.
+- Turbo 2 runs in strict env mode: any new env var the app reads must be added to `globalPassThroughEnv` in `turbo.json`, or it is invisible to the API.
+- The first API token was resource-scoped and cannot create resources on the Coolify host; the admin token can. Neither is stored anywhere.
 - Coolify project `dev-projects` (`t420hkorkdrbme5qjhltlq7m`), env `development` (`he4jwsjxdfhrgx8otyzubmov`). Resource name: `ackwell`.
 - Hot-reload reference setup: `/root/project/react-test/`. Full multi-agent reference project: `/root/project/acemc-que/`.
 - HL7 libraries: `node-hl7-client@latest`, `node-hl7-server@latest` (node-hl7 monorepo, Node 22+).
@@ -88,3 +88,4 @@ New migration after a schema change: `cd apps/api && npx drizzle-kit generate --
 | 2026-11-11 | main session | Read server rules + PLAN. Created `.claude/agents/` (backend-dev, frontend-dev, qa-engineer), `docs/HANDOVER.md`, `docs/NEXT.md`. Listed open questions (§4b). Waiting for plan approval. |
 | 2026-11-11 | main session | User approved plan (hot reload, `ackwell`, Coolify DB). git init, monorepo scaffold, Phase 1 core built + tested (schemas 7/7, API e2e 12/12). Dev compose written. Coolify DB/service creation **blocked**: token not admin. Subdomain `ackwell` verified free. |
 | 2026-11-11 | main session | User approved publishing the MLLP range on the LAN IP. Coolify uses 6001–6002, so the range moved to **6100–6150** on `172.16.10.30` (compose + env default + .env.example). |
+| 2026-11-11 | main session | Created Coolify `ackwell-db` (+ daily backup) and hot-reload service `ackwell` via API (admin token), set env vars, deployed. Fixed Turbo strict-env filtering of `DATABASE_URL` (`globalPassThroughEnv`). Live checks: `curl -I` 200, `/health` ok, CRUD smoke test (create, 400 out-of-range, delete) on the live URL. |
