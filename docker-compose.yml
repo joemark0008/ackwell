@@ -1,0 +1,38 @@
+# Dev deployment (Coolify custom service "ackwell"): live hot reload.
+# The project folder is bind-mounted, so saving a file on the server updates the live site.
+# One container runs `turbo dev`: schemas (tsup --watch) + api (nest --watch, :3000) + web (vite, :5173).
+# Vite proxies /api and /health to the API inside the same container.
+# Secrets (DATABASE_URL, BETTER_AUTH_SECRET) are Coolify env vars, never committed.
+# DB = Coolify standalone Postgres "ackwell-db" on the "coolify" network
+# (enable "Connect to Predefined Network" on this service).
+#
+# MLLP: listeners arrive in Phase 2. The 6000-6050 range is NOT published yet; publishing it
+# needs the user's explicit OK (server rule exception, see docs/HANDOVER.md §4b).
+services:
+  app:
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=${DATABASE_URL}
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+      - PORT=3000
+      - APP_URL=https://ackwell.joemarkgimeno.com
+      - PUBLIC_HOST=ackwell.joemarkgimeno.com
+      - API_PROXY_TARGET=http://localhost:3000
+      - MLLP_PORT_RANGE=6000-6050
+      - RETENTION_DEFAULT_DAYS=7
+      - LOG_LEVEL=info
+      - TURBO_TELEMETRY_DISABLED=1
+      - NPM_CONFIG_UPDATE_NOTIFIER=false
+    volumes:
+      - /root/project/ackwell:/app
+      - ackwell-node-modules:/app/node_modules
+    expose:
+      - "5173"
+      - "3000"
+    restart: unless-stopped
+
+volumes:
+  ackwell-node-modules:

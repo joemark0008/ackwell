@@ -1,0 +1,37 @@
+import { parsePortRange, type PortRange } from '@ackwell/schemas';
+import { z } from 'zod';
+
+const envSchema = z.object({
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+  PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  APP_URL: z.string().default('http://localhost:3000'),
+  BETTER_AUTH_SECRET: z.string().optional(),
+  MLLP_PORT_RANGE: z
+    .string()
+    .default('6000-6050')
+    .transform((v, ctx): PortRange => {
+      try {
+        return parsePortRange(v);
+      } catch (e) {
+        ctx.addIssue({ code: 'custom', message: (e as Error).message });
+        return z.NEVER;
+      }
+    }),
+  RETENTION_DEFAULT_DAYS: z.coerce.number().int().min(1).max(3650).default(7),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+});
+
+export type Env = z.infer<typeof envSchema>;
+
+export const ENV = Symbol('ENV');
+
+/** Validates process env once at startup; throws with a readable list of problems. */
+export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
+  const r = envSchema.safeParse(source);
+  if (!r.success) {
+    const lines = r.error.issues.map((i) => `  ${i.path.join('.')}: ${i.message}`).join('\n');
+    throw new Error(`Invalid environment:\n${lines}`);
+  }
+  return r.data;
+}

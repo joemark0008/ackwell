@@ -1,0 +1,88 @@
+# Ackwell — Handover
+
+Read this first when you pick up the project (new session, new agent, or a new person).
+It describes **where things stand right now**. Update it at the end of every work session.
+
+**Last updated:** 2026-11-11 · **By:** main session
+**Current phase:** Plan **APPROVED** 2026-11-11. Phase 1 (core) code **done and tested locally**. **Blocked:** Coolify DB + service not created — the API token is project-scoped and Coolify refuses to place resources on the Coolify host (§4b).
+**Live (dev):** not deployed yet (blocked). Subdomain confirmed free: https://ackwell.joemarkgimeno.com
+
+---
+
+## 1. Project in one paragraph
+Ackwell is a full-stack app for HL7 v2 channels. An **inbound channel** is an MLLP server anyone on the LAN can send HL7 to: the message is saved, ACKed, parsed to lossless JSON and delivered through a pluggable adapter (signed webhook in v1). An **outbound channel** accepts JSON over REST (`POST /channels/:id/send`, API key), builds HL7, sends it over MLLP, waits for the ACK and records AA/AE/AR with retries. A shared message log, live viewer, test-send box and resend live in a React dashboard. Stack: NestJS + Drizzle + PostgreSQL + pg-boss (backend), React + Vite + TanStack + shadcn/ui + Monaco (frontend), npm workspaces + Turborepo monorepo, one Docker image, deployed through Coolify.
+
+## 2. Key documents
+| File | Purpose |
+|---|---|
+| `docs/PLAN.md` | full plan: how it works, stack, repo layout, data model, design decisions, deployment, build order |
+| `docs/NEXT.md` | progress tracker and the next actions |
+| `docs/HANDOVER.md` | this file — current state |
+| `.claude/agents/*.md` | backend-dev, frontend-dev, qa-engineer |
+| `docs/reports/` | agent reports (created when the first report is written) |
+| `/root/project/CLAUDE.md` | server-wide Coolify deployment rules |
+
+## 3. Current state
+| Area | State |
+|---|---|
+| Plan (`docs/PLAN.md`) | **APPROVED** 2026-11-11 |
+| `.claude` agents | Done: backend-dev, frontend-dev, qa-engineer |
+| Monorepo | Done: npm workspaces + Turborepo (`apps/api`, `apps/web`, `packages/schemas`), Node 22, TypeScript 5.9 |
+| Shared schemas (`packages/schemas`) | Zod 4 channel schemas (inbound/outbound config, webhook delivery, create/update/response) + port-range helper; built with tsup (ESM + CJS) |
+| Backend (`apps/api`) | **Phase 1 done:** NestJS 12 (**ESM-only** → relative imports need `.js`), Zod-validated env, nestjs-pino, Swagger at `/api/docs`, `GET /health` (no `/api` prefix), Drizzle schema + migration `0000_init` (channels, messages, delivery_attempts, api_keys), migrations on startup (retries while the DB starts), channel CRUD `/api/channels` |
+| Frontend (`apps/web`) | Placeholder only (Vite 8 + React 19 + Tailwind 4 + TanStack Query): shows API health + channel list. Real UI = Phase 4. |
+| Tests | schemas 7/7, API e2e (Vitest + Testcontainers Postgres) 12/12, typecheck clean, `nest build` + `vite build` OK |
+| Dev compose | `docker-compose.yml`: one `node:22-alpine` container running `turbo dev` (vite :5173 proxies `/api` + `/health` to nest :3000). MLLP ports **not** published yet. |
+| Coolify DB `ackwell-db` | **Not created — blocked** (token not admin) |
+| Coolify service `ackwell` | **Not created — blocked** (same). Subdomain `ackwell` checked free. |
+| Git repo | `git init` on `main`, local commits only (no remote) |
+
+### How to run tests (Node is not on the host)
+```
+docker run --rm --network host -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /root/project/ackwell:/app -w /app node:22-alpine \
+  sh -c "npm run build -w @ackwell/schemas && npx turbo run test typecheck"
+```
+New migration after a schema change: `cd apps/api && npx drizzle-kit generate --name <change>` (in the container).
+
+## 4. Decisions already made (from PLAN.md)
+- Generic, lossless JSON (segments → fields → components); friendly per-channel mappings later.
+- Persist before ACK. pg-boss on the same Postgres (no Redis). One queue per outbound channel for ordering.
+- Delivery via a `DeliveryAdapter` interface; webhook only in v1, signed per Standard Webhooks with secret rotation.
+- No encryption at rest (LAN only). Retention per channel, default 7 days, hourly cleanup job.
+- Security: per-channel IP allowlist + optional TLS for MLLP; hashed per-channel API keys for the send endpoint; Better Auth for the UI.
+- Single replica (listeners own ports). MLLP port range 6000–6050.
+- One image: NestJS serves the built SPA.
+
+## 4a. User decisions (2026-11-11)
+- Plan approved. Dev runs in **live hot reload** mode. Subdomain **`ackwell`**. Database = **Coolify-managed Postgres** `ackwell-db`.
+
+## 4b. Open items for the user
+1. **Coolify admin action needed (blocker).** The provided API token is limited to selected projects, and Coolify answers *"Only an admin can place resources on the server that runs Coolify"* when creating the DB or the service. Either give an admin-level token for one session, or create these two in the dashboard (dev-projects → development, server `localhost`):
+   - PostgreSQL 16 `ackwell-db` (user `ackwell`, db `ackwell`, not public, daily backup).
+   - Docker Compose (empty) service `ackwell` with `docker-compose.yml` from this folder, URL `https://ackwell.joemarkgimeno.com:5173`, "Connect to Predefined Network" on, env `DATABASE_URL` (= `ackwell-db` internal URL) and `BETTER_AUTH_SECRET`.
+   After that, the scoped token should be able to manage them (env vars, deploy, restart).
+2. **MLLP host ports (needed from Phase 2).** `/root/project/CLAUDE.md` forbids host port mappings, but MLLP is raw TCP and cannot go through Traefik. Recommended: allow publishing `6000-6050` for `ackwell` only, firewalled to the LAN. Not done yet.
+3. **How HL7 senders reach the server.** Cloudflare proxies `*.joemarkgimeno.com` and does not pass raw TCP on 6000–6050. Senders need the server IP or a DNS-only record.
+4. **Git remote** (optional for dev; needed later for CI/auto-deploy of the production image).
+
+## 5. Environment notes
+- Node is **not** installed on the host. Run npm, drizzle-kit and tests in `node:22-alpine` containers.
+- The Coolify API token comes from the `COOLIFY_API_TOKEN` env var. Never write it to a file.
+- Coolify project `dev-projects` (`t420hkorkdrbme5qjhltlq7m`), env `development` (`he4jwsjxdfhrgx8otyzubmov`). Resource name: `ackwell`.
+- Hot-reload reference setup: `/root/project/react-test/`. Full multi-agent reference project: `/root/project/acemc-que/`.
+- HL7 libraries: `node-hl7-client@latest`, `node-hl7-server@latest` (node-hl7 monorepo, Node 22+).
+
+## 6. Known issues / risks
+- MLLP traffic bypasses the reverse proxy and Cloudflare (see §4b-1, §4b-2).
+- Raw HL7 (patient data) is stored unencrypted — acceptable only while the app stays on the LAN.
+- Dev site is on the public internet with **no auth yet**: the CRUD API is open. Auth (Better Auth) is scheduled before Phase 2 starts listeners (NEXT → Phase 1b).
+- `turbo dev`: the API reads `@ackwell/schemas` from its built `dist/`; tsup rebuilds on change, but nest watch may need a save in `apps/api` to pick it up.
+- Strict outbound ordering with pg-boss needs the right queue policy; confirm during Phase 3.
+- `node-hl7-server` / `node-hl7-client` APIs must be checked against their current docs before building.
+
+## 7. Session log
+| Date | Who | What happened |
+|---|---|---|
+| 2026-11-11 | main session | Read server rules + PLAN. Created `.claude/agents/` (backend-dev, frontend-dev, qa-engineer), `docs/HANDOVER.md`, `docs/NEXT.md`. Listed open questions (§4b). Waiting for plan approval. |
+| 2026-11-11 | main session | User approved plan (hot reload, `ackwell`, Coolify DB). git init, monorepo scaffold, Phase 1 core built + tested (schemas 7/7, API e2e 12/12). Dev compose written. Coolify DB/service creation **blocked**: token not admin. Subdomain `ackwell` verified free. |
