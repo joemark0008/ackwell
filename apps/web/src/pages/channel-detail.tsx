@@ -131,7 +131,12 @@ function ConfigCard({ channel }: { channel: Channel }) {
           <Row label="HL7 version" mono>
             {channel.hl7Version}
           </Row>
-          <Row label="Retention">{channel.retentionDays} days</Row>
+          <Row label="Retention">
+            {channel.retentionDays} days
+            <span className="block text-xs text-muted-foreground">
+              Finished messages older than this are deleted hourly. Pending ones are kept.
+            </span>
+          </Row>
           <Row label="TLS">{tls ? 'On' : 'Off'}</Row>
           {channel.direction === 'inbound' ? (
             <>

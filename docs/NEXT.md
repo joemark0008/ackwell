@@ -3,7 +3,7 @@
 Status keys: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 Update this file whenever a task changes state. Each line gives its owner, and links to its report in `docs/reports/` once done.
 
-**Now:** Phases 1, 1b, **2 (inbound), 5 (webhook delivery) and 3 (outbound) done and LIVE** at https://ackwell.joemarkgimeno.com. **Next: Phase 6 (retention), then Hardening (TLS for listeners, metrics, SSE).**
+**Now:** Phases 1, 1b, **2 (inbound), 5 (webhook delivery), 3 (outbound) and 6 (retention) done and LIVE** at https://ackwell.joemarkgimeno.com. **Next: Phase 7 Hardening (TLS for listeners/outbound certs, metrics, SSE live feed), then Phase 8 QA and Phase 9 production deployment (Dockerfile).**
 
 ---
 
@@ -15,7 +15,8 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 5. `[x]` **backend-dev:** Phase 2 — inbound listeners, message log API, UI wiring (2026-11-11, [report](reports/2026-11-11-backend-phase2-inbound.md)).
 6. `[x]` **backend-dev:** Phase 5 — pg-boss, `DeliveryAdapter` + signed webhook, secrets, resend (2026-11-11, [report](reports/2026-11-11-backend-phase5-delivery.md)).
 7. `[x]` **backend-dev:** Phase 3 — outbound send endpoint, API keys, strict-FIFO queue, MLLP sender, ACK tracking (2026-11-11, [report](reports/2026-11-11-backend-phase3-outbound.md)).
-9. `[ ]` **backend-dev:** Phase 6 — retention: hourly pg-boss schedule, batched deletes, skip `received` / `processing` / `queued`.
+9. `[x]` **backend-dev:** Phase 6 — retention: hourly pg-boss schedule, batched deletes, protected statuses (2026-11-11, [report](reports/2026-11-11-backend-phase6-retention.md)).
+10. `[ ]` **backend-dev + frontend-dev:** Phase 7 — Hardening: TLS for inbound listeners (cert config), outbound CA/pinning, prom-client metrics, SSE live feed (replace polling), Monaco viewer.
 8. `[ ]` **frontend-dev:** SSE live feed (replace 4 s polling), Monaco in the message dialog, test-send box, resend.
 
 ---
@@ -90,10 +91,11 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 - [x] Tests: signature verify / tamper / replay window / rotation (unit 6) + delivery e2e 8 (signed delivery, backoff, maxAttempts, 4xx, rotation, revoke, no secret, resend)
 - [x] Report → [reports/2026-11-11-backend-phase5-delivery.md](reports/2026-11-11-backend-phase5-delivery.md)
 
-## Phase 6 — Retention (owner: backend-dev)
-- [ ] Per-channel retention days (default from `RETENTION_DEFAULT_DAYS`)
-- [ ] Hourly pg-boss job (`QueueService` exists), batched deletes, skips `received` / `processing` (pending delivery or retry)
-- [ ] Tests
+## Phase 6 — Retention (owner: backend-dev) — DONE 2026-11-11
+- [x] Per-channel retention days (default from `RETENTION_DEFAULT_DAYS`) — since Phase 1; cutoff on `created_at`
+- [x] Hourly pg-boss schedule (`0 * * * *` UTC, singleton queue), batched deletes of 1000, never deletes `received` / `queued` / `processing`; `GET /api/retention`, `POST /api/retention/run`
+- [x] Tests: retention e2e 4 (cutoffs per channel, protected statuses, attempts cascade, 2,350-row batching, auth)
+- [x] Report → [reports/2026-11-11-backend-phase6-retention.md](reports/2026-11-11-backend-phase6-retention.md)
 
 ## Phase 7 — Hardening (owner: backend-dev + frontend-dev)
 - [x] Per-channel API keys (hashed, label, last used, revoke) + UI (done in Phase 3)
@@ -135,3 +137,4 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 | 2026-11-11 | Phase 2: HL7↔JSON codec, channel manager + MLLP listeners, messages API, UI start/stop + message log + dialog; schemas 21/21, API 27/27, web 10/10; live MLLP smoke on 172.16.10.30:6100 | main session | [report](reports/2026-11-11-backend-phase2-inbound.md) |
 | 2026-11-11 | Phase 5: pg-boss queue, DeliveryAdapter registry, signed webhook adapter (rotation, backoff), secrets API + UI, resend; API 41/41, web 12/12; live signed delivery verified | main session | [report](reports/2026-11-11-backend-phase5-delivery.md) |
 | 2026-11-11 | Phase 3: send endpoint, API keys, strict-FIFO outbound queue, raw MLLP sender, ACK tracking, test-send + keys UI; API 50/50, web 14/14; live loopback sends verified | main session | [report](reports/2026-11-11-backend-phase3-outbound.md) |
+| 2026-11-11 | Phase 6: hourly retention schedule, batched deletes, protected statuses, status/run-now routes; API 54/54; live schedule verified | main session | [report](reports/2026-11-11-backend-phase6-retention.md) |

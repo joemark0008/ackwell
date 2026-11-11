@@ -10,6 +10,7 @@ import { HealthController } from './health/health.controller.js';
 import { MessagesModule } from './messages/messages.module.js';
 import { OutboundModule } from './outbound/outbound.module.js';
 import { QueueModule } from './queue/queue.module.js';
+import { RetentionModule } from './retention/retention.module.js';
 import { SettingsController } from './settings/settings.controller.js';
 
 const pretty = process.env.NODE_ENV === 'development' && process.env.LOG_PRETTY !== 'false';
@@ -33,6 +34,7 @@ const pretty = process.env.NODE_ENV === 'development' && process.env.LOG_PRETTY 
     OutboundModule,
     ChannelsModule,
     MessagesModule,
+    RetentionModule,
   ],
   controllers: [HealthController, SettingsController],
 })
