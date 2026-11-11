@@ -10,11 +10,12 @@ const channel: Channel = {
   id: '11111111-1111-4111-8111-111111111111',
   name: 'Lab in',
   direction: 'inbound',
+  transport: 'mllp',
   status: 'stopped',
   hl7Version: '2.5.1',
   retentionDays: 7,
   config: { port: 6100, tls: { enabled: false }, allowlist: [] },
-  delivery: { type: 'webhook', url: 'https://ehr.local/hook', timeoutMs: 10000, maxAttempts: 10 },
+  delivery: { type: 'webhook', url: 'https://ehr.local/hook', timeoutMs: 10000, maxAttempts: 10, payload: 'both' },
   createdAt: '2026-11-11T00:00:00Z',
   updatedAt: '2026-11-11T00:00:00Z',
 };

@@ -89,6 +89,12 @@ export function WebhookCard({ channel }: { channel: Channel }) {
               {delivery?.maxAttempts} attempts · {fmtNum(delivery?.timeoutMs)} ms timeout
             </dd>
           </div>
+          <div className="grid grid-cols-[6rem_minmax(0,1fr)] gap-3 py-2 text-sm">
+            <dt className="text-muted-foreground">JSON</dt>
+            <dd>
+              {{ both: 'Typed (flat) + lossless (json)', typed: 'Typed only (flat)', lossless: 'Lossless only (json)' }[delivery?.payload ?? 'both']}
+            </dd>
+          </div>
         </dl>
 
         <div>

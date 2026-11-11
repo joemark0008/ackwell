@@ -18,14 +18,17 @@ import {
   type Hl7Version,
   type MessageSummary,
   type OutboundConfig,
+  type OutboundFileConfig,
   type SendRequest,
 } from '@ackwell/schemas';
-import { eq, sql } from 'drizzle-orm';
+import { and, count, eq, isNotNull, sql } from 'drizzle-orm';
 import { fromDrizzle, type Job } from 'pg-boss';
 import { AppEvents } from '../common/events.js';
 import { ENV, type Env } from '../config/env.js';
 import { DB, type Db } from '../db/db.js';
 import { channels, deliveryAttempts, messages, type ChannelRow, type MessageRow } from '../db/schema.js';
+import { FileRootService } from '../files/file-root.service.js';
+import { writeHl7File } from '../files/file-writer.js';
 import { QueueService } from '../queue/queue.module.js';
 import { MllpSendError, sendHl7 } from './mllp-sender.js';
 
@@ -57,6 +60,7 @@ export class OutboundService implements OnApplicationBootstrap {
     @Inject(ENV) private readonly env: Env,
     private readonly queue: QueueService,
     private readonly events: AppEvents,
+    private readonly files: FileRootService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -96,7 +100,7 @@ export class OutboundService implements OnApplicationBootstrap {
       throw new BadRequestException({ statusCode: 400, code: 'INVALID_HL7', message: (e as Error).message });
     }
     const raw = buildHl7(json);
-    const cfg = channel.config as OutboundConfig;
+    const cfg = channel.config as OutboundConfig | OutboundFileConfig;
 
     const row = await this.db.transaction(async (tx) => {
       const [inserted] = await tx
@@ -129,13 +133,19 @@ export class OutboundService implements OnApplicationBootstrap {
       .set({ status: 'queued', error: null, ackCode: null })
       .where(eq(messages.id, messageId))
       .returning();
-    await this.enqueue(messageId, row.channel.id, row.channel.config as OutboundConfig);
+    await this.enqueue(messageId, row.channel.id, row.channel.config as OutboundConfig | OutboundFileConfig);
     const summary = toSummary(updated!);
     this.events.emit('message', summary);
     return summary;
   }
 
-  private async enqueue(messageId: string, channelId: string, cfg: OutboundConfig, tx?: Pick<Db, 'execute'>): Promise<void> {
+  private async enqueue(
+    messageId: string,
+    channelId: string,
+    cfg: OutboundConfig | OutboundFileConfig,
+    tx?: Pick<Db, 'execute'>,
+  ): Promise<void> {
+    const timeoutMs = 'ackTimeoutMs' in cfg ? cfg.ackTimeoutMs : 30_000; // file writes: generous fixed budget
     await this.queue.boss.send(
       OUTBOUND_QUEUE,
       { messageId } satisfies OutboundJob,
@@ -144,7 +154,7 @@ export class OutboundService implements OnApplicationBootstrap {
         retryLimit: Math.max(0, cfg.retry.maxAttempts - 1),
         retryDelay: cfg.retry.backoffSeconds,
         retryBackoff: false,
-        expireInSeconds: Math.ceil(cfg.ackTimeoutMs / 1000) + 30,
+        expireInSeconds: Math.ceil(timeoutMs / 1000) + 30,
         ...(tx ? { db: fromDrizzle(tx, sql) } : {}),
       },
     );
@@ -162,6 +172,7 @@ export class OutboundService implements OnApplicationBootstrap {
     }
     const { channel, message } = row;
     const cfg = channel.config as OutboundConfig;
+    const retry = (channel.config as OutboundConfig | OutboundFileConfig).retry;
     const [prev] = await this.db
       .select({ n: sql<number>`coalesce(max(${deliveryAttempts.attempt}), 0)::int` })
       .from(deliveryAttempts)
@@ -176,6 +187,10 @@ export class OutboundService implements OnApplicationBootstrap {
       .returning();
     if (processing) this.events.emit('message', toSummary(processing));
     try {
+      if (channel.transport === 'file') {
+        await this.writeFile(channel, message, raw, attempt);
+        return;
+      }
       const res = await sendHl7({
         host: cfg.host,
         port: cfg.port,
@@ -199,7 +214,7 @@ export class OutboundService implements OnApplicationBootstrap {
     } catch (e) {
       const err = e instanceof MllpSendError ? e : new MllpSendError((e as Error).message);
       await this.db.insert(deliveryAttempts).values({ messageId, attempt, result: 'failure', response: null, error: err.message });
-      if (triesThisJob >= cfg.retry.maxAttempts) {
+      if (triesThisJob >= retry.maxAttempts) {
         await this.finish(message, 'failed', null, err.message);
         this.log.warn({ channelId: channel.id, messageId }, `Send failed permanently after ${attempt} attempt(s): ${err.message}`);
         return;
@@ -208,6 +223,40 @@ export class OutboundService implements OnApplicationBootstrap {
       this.log.warn({ channelId: channel.id, messageId }, `Send attempt ${attempt} failed, will retry: ${err.message}`);
       throw err; // pg-boss schedules the retry; strict FIFO holds the channel's later messages
     }
+  }
+
+  /** File transport: write the finished `.hl7` into the channel folder; success = `sent` (no ACK exists). */
+  private async writeFile(channel: ChannelRow, message: MessageRow, raw: string, attempt: number): Promise<void> {
+    const cfg = channel.config as OutboundFileConfig;
+    const [type, trigger] = (message.messageType ?? '').split('^');
+    const [written] = await this.db
+      .select({ n: count() })
+      .from(messages)
+      .where(and(eq(messages.channelId, channel.id), isNotNull(messages.sourceFile)));
+    const now = new Date();
+    const file = await writeHl7File(this.files, cfg, raw, {
+      messageType: type,
+      trigger,
+      controlId: message.controlId ?? '',
+      timestamp: hl7Timestamp(now),
+      date: hl7Timestamp(now).slice(0, 8),
+      seq: String((written?.n ?? 0) + 1).padStart(6, '0'),
+      id: message.id,
+    });
+    await this.db.insert(deliveryAttempts).values({
+      messageId: message.id,
+      attempt,
+      result: 'success',
+      response: `Wrote ${file.path} (${file.bytes} bytes)`,
+      error: null,
+    });
+    const [updated] = await this.db
+      .update(messages)
+      .set({ status: 'sent', ackCode: null, error: null, sourceFile: file.path })
+      .where(eq(messages.id, message.id))
+      .returning();
+    if (updated) this.events.emit('message', toSummary(updated));
+    this.log.log({ channelId: channel.id, messageId: message.id }, `Wrote ${file.path} (attempt ${attempt})`);
   }
 
   private async finish(message: MessageRow, status: MessageRow['status'], ackCode: string | null, error: string | null) {
@@ -263,6 +312,7 @@ function toSummary(row: MessageRow): MessageSummary {
     ackCode: row.ackCode,
     error: row.error,
     remoteAddress: row.remoteAddress,
+    sourceFile: row.sourceFile,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

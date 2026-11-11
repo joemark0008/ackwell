@@ -188,6 +188,7 @@ function toSummary(row: MessageRow): MessageSummary {
     ackCode: row.ackCode,
     error: row.error,
     remoteAddress: row.remoteAddress,
+    sourceFile: row.sourceFile,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

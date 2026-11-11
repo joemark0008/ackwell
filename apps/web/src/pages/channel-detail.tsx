@@ -1,11 +1,12 @@
-import type { Channel } from '@ackwell/schemas';
+import type { Channel, InboundFileConfig, OutboundFileConfig } from '@ackwell/schemas';
 import { ArrowLeft, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { DirectionBadge, StatusBadge } from '@/components/badges';
 import { CopyButton } from '@/components/copy-button';
 import { DeleteChannelDialog } from '@/components/delete-channel-dialog';
-import { Flow, inboundFlow, outboundFlow } from '@/components/flow';
+import { FileErrorsCard } from '@/components/file-errors-card';
+import { fileInboundFlow, fileOutboundFlow, Flow, inboundFlow, outboundFlow } from '@/components/flow';
 import { MessagesCard } from '@/components/messages-card';
 import { PageHeader } from '@/components/page-header';
 import { StartStopButton } from '@/components/start-stop-button';
@@ -60,11 +61,41 @@ function CodeBlock({ code, title }: { code: string; title: string }) {
   );
 }
 
+function FileInboundConnection({ channel }: { channel: Channel }) {
+  const cfg = channel.config as InboundFileConfig;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Connection · shared folder</CardTitle>
+        <CardDescription>
+          The LIS saves one HL7 message per file into the watched folder. Ackwell reads a file only once it has stopped changing,
+          then moves it away.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-5 md:grid-cols-[minmax(0,1fr)_240px]">
+        <div className="space-y-3">
+          <Endpoint label="Watched folder (results)" value={`${cfg.directory}/`} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Endpoint label="Imported files go to" value={`${cfg.processedDirectory}/`} />
+            <Endpoint label="Bad files go to" value={`${cfg.errorDirectory}/`} />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Paths are inside the shared folder mounted on the server. Files matching{' '}
+            <span className="font-mono">{cfg.include.join(', ')}</span> are imported after {cfg.stableMs} ms without changes.
+          </p>
+        </div>
+        <Flow steps={fileInboundFlow(cfg.directory, cfg.processedDirectory, cfg.errorDirectory, channel.delivery?.url)} />
+      </CardContent>
+    </Card>
+  );
+}
+
 function ConnectionCard({ channel }: { channel: Channel }) {
   const settings = useSettings();
   const host = settings.data?.mllp.host ?? 'server';
   const cfg = channel.config as { port: number; host?: string };
 
+  if (channel.direction === 'inbound' && channel.transport === 'file') return <FileInboundConnection channel={channel} />;
   if (channel.direction === 'inbound') {
     const endpoint = `${host}:${cfg.port}`;
     return (
@@ -95,16 +126,22 @@ function ConnectionCard({ channel }: { channel: Channel }) {
   -H "Authorization: Bearer <api-key>" \\
   -H "Content-Type: application/json" \\
   -d '{ "hl7": "MSH|^~\\\\&|APP|FAC|LIS|LAB|||ADT^A01|||${channel.hl7Version}\\rPID|1||MRN1||DOE^JANE" }'`;
+  const fileCfg = channel.transport === 'file' ? (channel.config as OutboundFileConfig) : null;
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Connection</CardTitle>
-        <CardDescription>POST a message here; Ackwell queues it, sends it over MLLP and records the ACK.</CardDescription>
+        <CardTitle>Connection{fileCfg ? ' · shared folder' : ''}</CardTitle>
+        <CardDescription>
+          {fileCfg
+            ? 'POST a message here; Ackwell queues it and writes it as a finished .hl7 file into the order folder.'
+            : 'POST a message here; Ackwell queues it, sends it over MLLP and records the ACK.'}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_240px]">
           <div className="min-w-0 space-y-3">
             <Endpoint label="Send endpoint" value={sendUrl} />
+            {fileCfg && <Endpoint label="Order files are written to" value={`${fileCfg.directory}/${fileCfg.fileName}`} />}
             <p className="text-xs text-muted-foreground">
               Body: <span className="font-mono">{'{ "hl7": "MSH|…" }'}</span> (raw text) or the generic JSON{' '}
               <span className="font-mono">{'{ "segments": [...] }'}</span>, or the typed JSON{' '}
@@ -113,7 +150,13 @@ function ConnectionCard({ channel }: { channel: Channel }) {
               Authenticate with an API key from this page. Messages go out one at a time, in order.
             </p>
           </div>
-          <Flow steps={outboundFlow(`${cfg.host}:${cfg.port}`, `POST …/${channel.id.slice(0, 8)}/send`)} />
+          <Flow
+            steps={
+              fileCfg
+                ? fileOutboundFlow(fileCfg.directory, fileCfg.fileName, `POST …/${channel.id.slice(0, 8)}/send`)
+                : outboundFlow(`${cfg.host}:${cfg.port}`, `POST …/${channel.id.slice(0, 8)}/send`)
+            }
+          />
         </div>
         <CodeBlock title="Example · curl" code={example} />
       </CardContent>
@@ -144,6 +187,10 @@ function ConfigCard({ channel }: { channel: Channel }) {
               Finished messages older than this are deleted hourly. Pending ones are kept.
             </span>
           </Row>
+          {channel.transport === 'file' ? (
+            <FileConfigRows channel={channel} />
+          ) : (
+          <>
           <Row label="TLS">
             {!tls
               ? 'Off'
@@ -168,9 +215,47 @@ function ConfigCard({ channel }: { channel: Channel }) {
               </Row>
             </>
           )}
+          </>
+          )}
         </dl>
       </CardContent>
     </Card>
+  );
+}
+
+const SEPARATOR_LABEL = { CR: 'CR (\\r)', CRLF: 'CRLF (\\r\\n)', LF: 'LF (\\n)' } as const;
+
+function FileConfigRows({ channel }: { channel: Channel }) {
+  if (channel.direction === 'inbound') {
+    const c = channel.config as InboundFileConfig;
+    return (
+      <>
+        <Row label="Connection">Shared folder</Row>
+        <Row label="File types" mono>
+          {c.include.join(', ')}
+        </Row>
+        <Row label="Finished after">{fmtNum(c.stableMs)} ms unchanged</Row>
+        <Row label="Polling">{c.usePolling ? `every ${fmtNum(c.pollIntervalMs)} ms` : 'Off (local change events)'}</Row>
+        <Row label="Encoding">{c.encoding === 'utf8' ? 'UTF-8' : 'Latin-1'}</Row>
+      </>
+    );
+  }
+  const c = channel.config as OutboundFileConfig;
+  return (
+    <>
+      <Row label="Connection">Shared folder</Row>
+      <Row label="File name" mono>
+        {c.fileName}
+      </Row>
+      <Row label="Line ending" mono>
+        {SEPARATOR_LABEL[c.segmentSeparator]}
+      </Row>
+      <Row label="If name exists">{c.onExists === 'suffix' ? 'Add _1, _2…' : 'Fail the message'}</Row>
+      <Row label="Encoding">{c.encoding === 'utf8' ? 'UTF-8' : 'Latin-1'}</Row>
+      <Row label="Retries">
+        {c.retry.maxAttempts} attempts · every {c.retry.backoffSeconds} s
+      </Row>
+    </>
   );
 }
 
@@ -241,6 +326,7 @@ export function ChannelDetailPage() {
         <div className="min-w-0 space-y-6">
           <ConnectionCard channel={channel} />
           {channel.direction === 'outbound' && <TestSendCard channel={channel} />}
+          {channel.direction === 'inbound' && channel.transport === 'file' && <FileErrorsCard channel={channel} />}
           <MessagesCard channel={channel} />
         </div>
         <div className="space-y-6">

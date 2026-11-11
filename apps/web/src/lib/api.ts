@@ -4,6 +4,8 @@ import type {
   Channel,
   CreateChannelInput,
   CreateChannelResponse,
+  FileErrorEntry,
+  FolderCheck,
   GlobalMessageListQuery,
   MessageDetail,
   MessageList,
@@ -69,6 +71,10 @@ export const api = {
     messages: (id: string, query: Partial<MessageListQuery> = {}) =>
       request<MessageList>('GET', `/api/channels/${id}/messages${toQuery(query)}`),
     send: (id: string, body: SendRequestInput) => request<MessageSummary>('POST', `/api/channels/${id}/send`, body),
+    checkFolder: (directory: string) => request<FolderCheck>('POST', '/api/channels/check-folder', { directory }),
+    fileErrors: (id: string) => request<FileErrorEntry[]>('GET', `/api/channels/${id}/files/errors`),
+    retryFileError: (id: string, name: string) =>
+      request<{ movedTo: string }>('POST', `/api/channels/${id}/files/errors/${encodeURIComponent(name)}/retry`),
   },
   apiKeys: {
     list: (channelId: string) => request<ApiKey[]>('GET', `/api/channels/${channelId}/api-keys`),

@@ -30,6 +30,12 @@ export class MetricsService implements OnModuleInit, OnModuleDestroy {
     labelNames: ['channel_id', 'direction'],
     registers: [this.registry],
   });
+  private readonly filesTotal = new Counter({
+    name: 'ackwell_files_total',
+    help: 'File channels: files imported / duplicate / moved to the error folder (inbound) and written (outbound).',
+    labelNames: ['channel_id', 'outcome'],
+    registers: [this.registry],
+  });
 
   constructor(
     @Inject(DB) private readonly db: Db,
@@ -101,6 +107,10 @@ export class MetricsService implements OnModuleInit, OnModuleDestroy {
 
   ackFailure(channelId: string, direction: 'inbound' | 'outbound', _code: string): void {
     this.ackFailures.inc({ channel_id: channelId, direction });
+  }
+
+  fileOutcome(channelId: string, outcome: 'imported' | 'duplicate' | 'error' | 'written'): void {
+    this.filesTotal.inc({ channel_id: channelId, outcome });
   }
 
   async scrape(): Promise<string> {

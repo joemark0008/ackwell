@@ -135,6 +135,7 @@ Delivery — DeliveryAdapter interface and signed webhook adapter for inbound JS
 Retention — per-channel retention setting and the scheduled cleanup job.
 Hardening — API keys, IP allowlist, TLS, metrics.
 Deployment — Dockerfile, docker-compose.yml, .env.example, health endpoint, graceful shutdown; then the Coolify setup. Helm chart only if Kubernetes is needed.
+File transport (planned, see docs/PLAN-FILE-TRANSPORT.md) — a second connection type next to MLLP: outbound channels write .hl7 order files into a shared folder (atomic temp + rename); inbound channels watch a shared folder with chokidar (polling for network shares, awaitWriteFinish), import result files (one message per file), deliver them like MLLP messages and move them to PROCESSED or ERROR. Folders: ORDER, RESULT, PROCESSED, ERROR. Existing MLLP channels are unchanged (new channels.transport column, default 'mllp').
 Later — NATS and other delivery adapters; per-channel mapping templates for friendly JSON.
 HL7 libraries
 

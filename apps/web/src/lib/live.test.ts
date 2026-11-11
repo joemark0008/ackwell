@@ -18,6 +18,7 @@ const msg = (id: string, over: Partial<MessageSummary> = {}): MessageSummary => 
   ackCode: 'AA',
   error: null,
   remoteAddress: null,
+  sourceFile: null,
   createdAt: '2026-11-11T12:00:00Z',
   updatedAt: '2026-11-11T12:00:00Z',
   ...over,

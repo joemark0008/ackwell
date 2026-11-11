@@ -1,4 +1,5 @@
 export * from './channel';
+export * from './files';
 export * from './hl7';
 export * from './hl7-flat';
 export * from './message';

@@ -23,7 +23,7 @@ export const keys = {
 export const LIVE_POLL_MS = 4000;
 
 export const useHealth = () => useQuery({ queryKey: keys.health, queryFn: api.health, refetchInterval: 15_000 });
-export const useSettings = () => useQuery({ queryKey: keys.settings, queryFn: api.settings, staleTime: Infinity });
+export const useSettings = () => useQuery({ queryKey: keys.settings, queryFn: api.settings, staleTime: 60_000 });
 export const useChannels = () => useQuery({ queryKey: keys.channels, queryFn: api.channels.list });
 export const useChannel = (id: string) => useQuery({ queryKey: keys.channel(id), queryFn: () => api.channels.get(id) });
 
@@ -161,5 +161,26 @@ export function useSendMessage(channelId: string) {
   return useMutation({
     mutationFn: (body: SendRequestInput) => api.channels.send(channelId, body),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['channels', channelId, 'messages'] }),
+  });
+}
+
+/** Inbound file channel: files in its error folder (refreshes while the page is open). */
+export function useFileErrors(channelId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['channels', channelId, 'file-errors'],
+    queryFn: () => api.channels.fileErrors(channelId),
+    enabled,
+    refetchInterval: 10_000,
+  });
+}
+
+export function useRetryFileError(channelId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => api.channels.retryFileError(channelId, name),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['channels', channelId, 'file-errors'] });
+      void qc.invalidateQueries({ queryKey: ['channels', channelId, 'messages'] });
+    },
   });
 }

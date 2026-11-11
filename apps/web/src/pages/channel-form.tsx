@@ -1,11 +1,19 @@
-import { HL7_VERSIONS, type Channel, type ChannelDirection, type NewWebhookSecret, type UpdateChannel } from '@ackwell/schemas';
+import {
+  HL7_VERSIONS,
+  type Channel,
+  type ChannelDirection,
+  type ChannelTransport,
+  type NewWebhookSecret,
+  type UpdateChannel,
+} from '@ackwell/schemas';
 import { ArrowDownToLine, ArrowLeft, ArrowUpFromLine, Loader2, Lock } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm, useWatch, type FieldPath } from 'react-hook-form';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { WebhookSecretDialog } from '@/components/webhook-secret-dialog';
-import { Flow, inboundFlow, outboundFlow } from '@/components/flow';
+import { InboundFileFields, OutboundFileFields, TransportPicker } from '@/components/file-fields';
+import { fileInboundFlow, fileOutboundFlow, Flow, inboundFlow, outboundFlow } from '@/components/flow';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,7 +38,8 @@ import { cn } from '@/lib/utils';
 export function NewChannelPage() {
   const [params] = useSearchParams();
   const direction: ChannelDirection = params.get('direction') === 'outbound' ? 'outbound' : 'inbound';
-  return <ChannelForm key={direction} direction={direction} />;
+  const transport: ChannelTransport = params.get('transport') === 'file' ? 'file' : 'mllp';
+  return <ChannelForm key={`${direction}-${transport}`} direction={direction} transport={transport} />;
 }
 
 export function EditChannelPage() {
@@ -38,10 +47,10 @@ export function EditChannelPage() {
   const { data, isPending, isError } = useChannel(id);
   if (isPending) return <Skeleton className="h-96 rounded-xl" />;
   if (isError || !data) return <p className="text-sm text-destructive">Channel not found.</p>;
-  return <ChannelForm key={data.id} direction={data.direction} channel={data} />;
+  return <ChannelForm key={data.id} direction={data.direction} transport={data.transport} channel={data} />;
 }
 
-function DirectionPicker({ value }: { value: ChannelDirection }) {
+function DirectionPicker({ value, transport }: { value: ChannelDirection; transport: ChannelTransport }) {
   const opts = [
     { v: 'inbound' as const, icon: ArrowDownToLine, title: 'Inbound', body: 'Listen for HL7, deliver JSON', tone: 'inbound' },
     { v: 'outbound' as const, icon: ArrowUpFromLine, title: 'Outbound', body: 'Accept JSON, send HL7', tone: 'outbound' },
@@ -53,7 +62,7 @@ function DirectionPicker({ value }: { value: ChannelDirection }) {
         return (
           <Link
             key={v}
-            to={`/channels/new?direction=${v}`}
+            to={`/channels/new?direction=${v}${transport === 'file' ? '&transport=file' : ''}`}
             replace
             role="radio"
             aria-checked={active}
@@ -88,7 +97,15 @@ function Section({ title, description, children }: { title: string; description?
   );
 }
 
-function ChannelForm({ direction, channel }: { direction: ChannelDirection; channel?: Channel }) {
+function ChannelForm({
+  direction,
+  transport,
+  channel,
+}: {
+  direction: ChannelDirection;
+  transport: ChannelTransport;
+  channel?: Channel;
+}) {
   const navigate = useNavigate();
   const settings = useSettings();
   const channels = useChannels();
@@ -107,24 +124,28 @@ function ChannelForm({ direction, channel }: { direction: ChannelDirection; chan
   const form = useForm<ChannelFormValues>({
     resolver: channelResolver,
     mode: 'onTouched',
-    defaultValues: channel ? formFromChannel(channel) : emptyForm(direction),
+    defaultValues: channel ? formFromChannel(channel) : emptyForm(direction, undefined, transport),
   });
   const { register, control, handleSubmit, watch, setError, setValue, getValues, formState } = form;
   const { errors, isSubmitting } = formState;
 
   // Pre-fill the next free inbound port once settings + channels are loaded.
   useEffect(() => {
-    if (!isEdit && direction === 'inbound' && suggested && !getValues('config.port')) {
+    if (!isEdit && direction === 'inbound' && transport === 'mllp' && suggested && !getValues('config.port')) {
       setValue('config.port', String(suggested));
     }
-  }, [isEdit, direction, suggested, getValues, setValue]);
+  }, [isEdit, direction, transport, suggested, getValues, setValue]);
 
   const v = watch();
   const host = settings.data?.mllp.host ?? 'server';
   const preview =
-    direction === 'inbound'
-      ? inboundFlow(`${host}:${v.config.port || '…'}`, v.delivery.url)
-      : outboundFlow(`${v.config.host || 'host'}:${v.config.port || '…'}`);
+    transport === 'file'
+      ? direction === 'inbound'
+        ? fileInboundFlow(v.config.directory || '…', v.config.processedDirectory || '…', v.config.errorDirectory || '…', v.delivery.url)
+        : fileOutboundFlow(v.config.directory || '…', v.config.fileName || '…')
+      : direction === 'inbound'
+        ? inboundFlow(`${host}:${v.config.port || '…'}`, v.delivery.url)
+        : outboundFlow(`${v.config.host || 'host'}:${v.config.port || '…'}`);
 
   async function onSubmit(values: ChannelFormValues) {
     const payload = toPayload(values);
@@ -173,15 +194,20 @@ function ChannelForm({ direction, channel }: { direction: ChannelDirection; chan
         }
         title={isEdit ? 'Edit channel' : `New ${direction} channel`}
         description={
-          direction === 'inbound'
-            ? 'Opens an MLLP port on the LAN. Messages are stored, acknowledged and delivered to your webhook as JSON.'
-            : 'Gives you a REST endpoint. JSON you POST is converted to HL7 and sent to the target over MLLP.'
+          transport === 'file'
+            ? direction === 'inbound'
+              ? 'Watches a shared folder. Each finished .hl7 file is stored, delivered to your webhook as JSON and moved to the processed folder.'
+              : 'Gives you a REST endpoint. JSON you POST is converted to HL7 and written as a finished .hl7 file into a shared folder.'
+            : direction === 'inbound'
+              ? 'Opens an MLLP port on the LAN. Messages are stored, acknowledged and delivered to your webhook as JSON.'
+              : 'Gives you a REST endpoint. JSON you POST is converted to HL7 and sent to the target over MLLP.'
         }
       />
 
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="space-y-6">
-          {!isEdit && <DirectionPicker value={direction} />}
+          {!isEdit && <DirectionPicker value={direction} transport={transport} />}
+          {!isEdit && <TransportPicker direction={direction} value={transport} filesEnabled={settings.data?.files.enabled ?? false} />}
 
           {running && (
             <p className="flex items-center gap-2 rounded-lg border bg-muted/40 px-4 py-3 text-sm">
@@ -233,7 +259,35 @@ function ChannelForm({ direction, channel }: { direction: ChannelDirection; chan
             </div>
           </Section>
 
-          {direction === 'inbound' ? (
+          {transport === 'file' ? (
+            <>
+              <Section
+                title={direction === 'inbound' ? 'Folders' : 'Order file'}
+                description={
+                  direction === 'inbound'
+                    ? 'Folders inside the shared root mounted on the server. Only finished files are read.'
+                    : 'Each message becomes one finished file: written aside first, then moved into the folder in one step.'
+                }
+              >
+                {direction === 'inbound' ? (
+                  <InboundFileFields control={control} register={register} err={err} invalid={invalid} disabled={running} />
+                ) : (
+                  <OutboundFileFields control={control} register={register} err={err} invalid={invalid} disabled={running} />
+                )}
+              </Section>
+              {direction === 'inbound' ? (
+                <DeliverySection register={register} control={control} err={err} invalid={invalid} disabled={running} />
+              ) : (
+                <RetrySection
+                  register={register}
+                  err={err}
+                  invalid={invalid}
+                  disabled={running}
+                  description="Used when the folder is not reachable or not writable. Messages stay in order."
+                />
+              )}
+            </>
+          ) : direction === 'inbound' ? (
             <>
               <Section title="Listener" description="Where HL7 senders on your network connect.">
                 <Field data-invalid={invalid('config.port')}>
@@ -271,25 +325,7 @@ function ChannelForm({ direction, channel }: { direction: ChannelDirection; chan
                 <TlsField control={control} disabled={running} direction="inbound" register={register} invalid={invalid} err={err} />
               </Section>
 
-              <Section title="Delivery" description="Each parsed message is POSTed as JSON to this webhook, with retries.">
-                <Field data-invalid={invalid('delivery.url')}>
-                  <FieldLabel htmlFor="webhook">Webhook URL</FieldLabel>
-                  <Input id="webhook" type="url" placeholder="https://ehr.local/hl7/inbound" className="font-mono text-sm" disabled={running} aria-invalid={invalid('delivery.url')} {...register('delivery.url')} />
-                  <FieldError errors={[err('delivery.url')]} />
-                </Field>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field data-invalid={invalid('delivery.timeoutMs')}>
-                    <FieldLabel htmlFor="timeoutMs">Timeout (ms)</FieldLabel>
-                    <Input id="timeoutMs" inputMode="numeric" className="font-mono" disabled={running} aria-invalid={invalid('delivery.timeoutMs')} {...register('delivery.timeoutMs')} />
-                    <FieldError errors={[err('delivery.timeoutMs')]} />
-                  </Field>
-                  <Field data-invalid={invalid('delivery.maxAttempts')}>
-                    <FieldLabel htmlFor="maxAttempts">Max attempts</FieldLabel>
-                    <Input id="maxAttempts" inputMode="numeric" className="font-mono" disabled={running} aria-invalid={invalid('delivery.maxAttempts')} {...register('delivery.maxAttempts')} />
-                    <FieldError errors={[err('delivery.maxAttempts')]} />
-                  </Field>
-                </div>
-              </Section>
+              <DeliverySection register={register} control={control} err={err} invalid={invalid} disabled={running} />
             </>
           ) : (
             <>
@@ -314,20 +350,7 @@ function ChannelForm({ direction, channel }: { direction: ChannelDirection; chan
                 <TlsField control={control} disabled={running} direction="outbound" register={register} invalid={invalid} err={err} />
               </Section>
 
-              <Section title="Retries" description="Used when the target is down or no ACK arrives. Messages stay in order.">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field data-invalid={invalid('config.retryMaxAttempts')}>
-                    <FieldLabel htmlFor="retryMax">Max attempts</FieldLabel>
-                    <Input id="retryMax" inputMode="numeric" className="font-mono" disabled={running} aria-invalid={invalid('config.retryMaxAttempts')} {...register('config.retryMaxAttempts')} />
-                    <FieldError errors={[err('config.retryMaxAttempts')]} />
-                  </Field>
-                  <Field data-invalid={invalid('config.retryBackoffSeconds')}>
-                    <FieldLabel htmlFor="retryBackoff">Backoff (seconds)</FieldLabel>
-                    <Input id="retryBackoff" inputMode="numeric" className="font-mono" disabled={running} aria-invalid={invalid('config.retryBackoffSeconds')} {...register('config.retryBackoffSeconds')} />
-                    <FieldError errors={[err('config.retryBackoffSeconds')]} />
-                  </Field>
-                </div>
-              </Section>
+              <RetrySection register={register} err={err} invalid={invalid} disabled={running} />
             </>
           )}
 
@@ -512,4 +535,92 @@ function patchFrom(payload: ReturnType<typeof toPayload>, ch: Channel): UpdateCh
     if (ch.direction === 'inbound') patch.delivery = p.delivery as Record<string, unknown>;
   }
   return patch;
+}
+
+type Register = ReturnType<typeof useForm<ChannelFormValues>>['register'];
+interface SectionFieldProps {
+  register: Register;
+  err: (n: string) => { message?: string } | undefined;
+  invalid: (n: string) => boolean | undefined;
+  disabled?: boolean;
+}
+
+const PAYLOAD_FORMATS = [
+  { v: 'both', label: 'Typed + lossless', hint: 'Sends both `flat` (typed) and `json` (lossless).' },
+  { v: 'typed', label: 'Typed only', hint: 'Sends `flat` (msh_9_1, pid_5 …). Falls back to `json` when the HL7 version has no typed definition (2.3, 2.5.1, 2.7 do).' },
+  { v: 'lossless', label: 'Lossless only', hint: 'Sends `json` ({ segments: […] }), which keeps every field, repetition and Z-segment.' },
+] as const;
+
+function DeliverySection({ register, control, err, invalid, disabled }: SectionFieldProps & { control: ReturnType<typeof useForm<ChannelFormValues>>['control'] }) {
+  const format = useWatch({ control, name: 'delivery.payload' });
+  const running = disabled;
+  return (
+    <Section title="Delivery" description="Each parsed message is POSTed as JSON to this webhook, with retries.">
+      <Field data-invalid={invalid('delivery.url')}>
+        <FieldLabel htmlFor="webhook">Webhook URL</FieldLabel>
+        <Input id="webhook" type="url" placeholder="https://ehr.local/hl7/inbound" className="font-mono text-sm" disabled={running} aria-invalid={invalid('delivery.url')} {...register('delivery.url')} />
+        <FieldError errors={[err('delivery.url')]} />
+      </Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field data-invalid={invalid('delivery.timeoutMs')}>
+          <FieldLabel htmlFor="timeoutMs">Timeout (ms)</FieldLabel>
+          <Input id="timeoutMs" inputMode="numeric" className="font-mono" disabled={running} aria-invalid={invalid('delivery.timeoutMs')} {...register('delivery.timeoutMs')} />
+          <FieldError errors={[err('delivery.timeoutMs')]} />
+        </Field>
+        <Field data-invalid={invalid('delivery.maxAttempts')}>
+          <FieldLabel htmlFor="maxAttempts">Max attempts</FieldLabel>
+          <Input id="maxAttempts" inputMode="numeric" className="font-mono" disabled={running} aria-invalid={invalid('delivery.maxAttempts')} {...register('delivery.maxAttempts')} />
+          <FieldError errors={[err('delivery.maxAttempts')]} />
+        </Field>
+      </div>
+      <Field>
+        <FieldLabel htmlFor="payloadFormat">JSON format</FieldLabel>
+        <Controller
+          control={control}
+          name="delivery.payload"
+          render={({ field }) => (
+            <Select value={field.value} onValueChange={field.onChange} disabled={running}>
+              <SelectTrigger id="payloadFormat" className="w-full sm:w-64">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAYLOAD_FORMATS.map((o) => (
+                  <SelectItem key={o.v} value={o.v}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
+        <FieldDescription>{PAYLOAD_FORMATS.find((o) => o.v === format)?.hint} The raw HL7 is always included as `raw`.</FieldDescription>
+      </Field>
+    </Section>
+  );
+}
+
+function RetrySection({
+  register,
+  err,
+  invalid,
+  disabled,
+  description = 'Used when the target is down or no ACK arrives. Messages stay in order.',
+}: SectionFieldProps & { description?: string }) {
+  const running = disabled;
+  return (
+    <Section title="Retries" description={description}>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field data-invalid={invalid('config.retryMaxAttempts')}>
+          <FieldLabel htmlFor="retryMax">Max attempts</FieldLabel>
+          <Input id="retryMax" inputMode="numeric" className="font-mono" disabled={running} aria-invalid={invalid('config.retryMaxAttempts')} {...register('config.retryMaxAttempts')} />
+          <FieldError errors={[err('config.retryMaxAttempts')]} />
+        </Field>
+        <Field data-invalid={invalid('config.retryBackoffSeconds')}>
+          <FieldLabel htmlFor="retryBackoff">Backoff (seconds)</FieldLabel>
+          <Input id="retryBackoff" inputMode="numeric" className="font-mono" disabled={running} aria-invalid={invalid('config.retryBackoffSeconds')} {...register('config.retryBackoffSeconds')} />
+          <FieldError errors={[err('config.retryBackoffSeconds')]} />
+        </Field>
+      </div>
+    </Section>
+  );
 }

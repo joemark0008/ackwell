@@ -240,6 +240,33 @@ describe('webhook delivery', () => {
     await http_().post(`/api/channels/${chId}/stop`).expect(200);
   });
 
+  it('sends only the chosen JSON format (typed / lossless)', async () => {
+    const ch = (await http_().get(`/api/channels/${chId}`).expect(200)).body;
+    expect(ch.delivery.payload).toBe('both');
+    await http_().post(`/api/channels/${chId}/webhook-secrets/rotate`).expect(201); // earlier tests revoked all
+    const sendWith = async (format: string, controlId: string, version = '2.5.1') => {
+      await http_().patch(`/api/channels/${chId}`).send({ delivery: { ...ch.delivery, payload: format } }).expect(200);
+      await http_().post(`/api/channels/${chId}/start`).expect(200);
+      rx.setPlan([200]);
+      const before = rx.hits.length;
+      await sendMllp(P.ok, SAMPLE_ORU.replace('MSG00001|P|2.5.1', `${controlId}|P|${version}`));
+      const hit = await waitFor(async () => rx.hits.slice(before).find((h) => h.body.includes(controlId)));
+      await http_().post(`/api/channels/${chId}/stop`).expect(200);
+      return JSON.parse(hit.body);
+    };
+    const typed = await sendWith('typed', 'FMT00001');
+    expect(typed.flat).toMatchObject({ msh_10: 'FMT00001' });
+    expect(typed).not.toHaveProperty('json');
+    expect(typed.raw).toContain('FMT00001');
+    const lossless = await sendWith('lossless', 'FMT00002');
+    expect(lossless.json.segments[0].id).toBe('MSH');
+    expect(lossless).not.toHaveProperty('flat');
+    // typed, but the version has no typed definition → falls back to the lossless json
+    const fallback = await sendWith('typed', 'FMT00003', '2.4');
+    expect(fallback.flat).toBeNull();
+    expect(fallback.json.segments[0].id).toBe('MSH');
+  });
+
   it('resend rejects messages of channels without delivery', async () => {
     await http_().post('/api/messages/00000000-0000-4000-8000-000000000000/resend').expect(404);
   });

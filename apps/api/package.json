@@ -19,6 +19,7 @@
     "@nestjs/platform-express": "^12.4.2",
     "@nestjs/swagger": "^12.1.1",
     "better-auth": "^1.7.20",
+    "chokidar": "^6.0.0",
     "drizzle-orm": "^0.45.4",
     "nestjs-pino": "^5.3.1",
     "node-hl7-client": "^4.1.2",

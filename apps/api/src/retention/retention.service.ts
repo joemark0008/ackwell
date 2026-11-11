@@ -1,8 +1,12 @@
 import { Inject, Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
 import { RETENTION_PROTECTED_STATUSES, type RetentionRun, type RetentionStatus } from '@ackwell/schemas';
+import { unlink } from 'node:fs/promises';
+import { join } from 'node:path';
+import { and, eq, inArray, isNotNull, lt } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { DB, type Db } from '../db/db.js';
-import { channels } from '../db/schema.js';
+import { channels, fileImports } from '../db/schema.js';
+import { FileRootService } from '../files/file-root.service.js';
 import { QueueService } from '../queue/queue.module.js';
 
 export const RETENTION_QUEUE = 'retention';
@@ -18,6 +22,9 @@ export const RETENTION_BATCH = 1000;
  * Messages still `received` / `queued` / `processing` (pending delivery, send or retry) are never
  * deleted, whatever their age. Deletes go in batches of RETENTION_BATCH per channel so the table
  * lock stays short.
+ *
+ * Inbound file channels: files moved to the processed folder are deleted after the same number of days,
+ * counted from the import (not the file's mtime, which a move keeps). Error-folder files are never deleted.
  */
 @Injectable()
 export class RetentionService implements OnApplicationBootstrap {
@@ -28,6 +35,7 @@ export class RetentionService implements OnApplicationBootstrap {
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly queue: QueueService,
+    private readonly files: FileRootService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -68,6 +76,7 @@ export class RetentionService implements OnApplicationBootstrap {
   private async execute(trigger: RetentionRun['trigger']): Promise<RetentionRun> {
     const started = new Date();
     const deleted: Record<string, number> = {};
+    let filesDeleted = 0;
     const rows = await this.db.select({ id: channels.id, name: channels.name, days: channels.retentionDays }).from(channels);
     for (const ch of rows) {
       const cutoff = new Date(started.getTime() - ch.days * 86_400_000);
@@ -81,6 +90,7 @@ export class RetentionService implements OnApplicationBootstrap {
         deleted[ch.id] = n;
         this.log.log({ channelId: ch.id }, `Retention: deleted ${n} message(s) of "${ch.name}" older than ${ch.days} day(s)`);
       }
+      filesDeleted += await this.deleteProcessedFiles(ch.id, ch.name, cutoff);
     }
     const finished = new Date();
     const run: RetentionRun = {
@@ -89,11 +99,46 @@ export class RetentionService implements OnApplicationBootstrap {
       durationMs: finished.getTime() - started.getTime(),
       deleted,
       total: Object.values(deleted).reduce((a, b) => a + b, 0),
+      filesDeleted,
       trigger,
     };
     this.lastRun = run;
     if (run.total === 0) this.log.debug(`Retention (${trigger}): nothing to delete`);
     return run;
+  }
+
+  /** Processed-folder files of one channel imported before `cutoff` (and their import rows). */
+  private async deleteProcessedFiles(channelId: string, name: string, cutoff: Date): Promise<number> {
+    if (!this.files.enabled) return 0;
+    const old = await this.db
+      .select({ id: fileImports.id, movedTo: fileImports.movedTo })
+      .from(fileImports)
+      .where(
+        and(
+          eq(fileImports.channelId, channelId),
+          inArray(fileImports.status, ['imported', 'duplicate']),
+          isNotNull(fileImports.movedTo),
+          lt(fileImports.createdAt, cutoff),
+        ),
+      )
+      .limit(RETENTION_BATCH);
+    if (!old.length) return 0;
+    let n = 0;
+    const done: string[] = [];
+    for (const f of old) {
+      try {
+        await unlink(join(this.files.root, ...f.movedTo!.split('/')));
+        n++;
+        done.push(f.id);
+      } catch (e) {
+        const code = (e as NodeJS.ErrnoException).code;
+        if (code === 'ENOENT') done.push(f.id); // already gone (moved or deleted by someone): forget it
+        else this.log.warn({ channelId }, `Retention: could not delete ${f.movedTo}: ${code ?? (e as Error).message}`);
+      }
+    }
+    if (done.length) await this.db.delete(fileImports).where(inArray(fileImports.id, done));
+    if (n) this.log.log({ channelId }, `Retention: deleted ${n} processed file(s) of "${name}"`);
+    return n;
   }
 
   private async deleteBatch(channelId: string, cutoff: Date): Promise<number> {

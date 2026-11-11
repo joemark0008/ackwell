@@ -147,8 +147,8 @@ function Body({ m }: { m: MessageDetail }) {
         <Meta label="ACK">
           <AckBadge code={m.ackCode} />
         </Meta>
-        <Meta label="From">
-          <span className="font-mono text-[13px]">{m.remoteAddress ?? '—'}</span>
+        <Meta label={m.sourceFile ? "File" : "From"}>
+          <span className="font-mono text-[13px]">{m.sourceFile ?? m.remoteAddress ?? '—'}</span>
         </Meta>
         <Meta label="Received">{formatDateTime(m.createdAt)}</Meta>
         {m.json && (

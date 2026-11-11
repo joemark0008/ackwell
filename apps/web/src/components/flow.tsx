@@ -53,3 +53,21 @@ export function outboundFlow(target: string, sendUrl = 'POST /api/channels/:id/s
     { label: 'ACK recorded', detail: 'AA · AE · AR' },
   ];
 }
+
+export function fileInboundFlow(folder: string, processed: string, error: string, webhook?: string): FlowStep[] {
+  return [
+    { label: 'LIS writes a result file', detail: `${folder}/*.hl7`, tone: 'inbound' },
+    { label: 'Ackwell picks it up when finished', detail: 'one message per file', tone: 'brand' },
+    { label: 'Stored, parsed to JSON', detail: `file → ${processed}/ (bad: ${error}/)` },
+    { label: 'Webhook', detail: webhook || 'https://…', tone: 'muted' },
+  ];
+}
+
+export function fileOutboundFlow(folder: string, fileName: string, sendUrl = 'POST /api/channels/:id/send'): FlowStep[] {
+  return [
+    { label: 'Your system', detail: sendUrl, tone: 'outbound' },
+    { label: 'Ackwell queues + builds HL7', detail: 'in order, with retries', tone: 'brand' },
+    { label: 'Finished file in the folder', detail: `${folder}/${fileName}`, tone: 'muted' },
+    { label: 'LIS reads it', detail: 'no ACK in file mode' },
+  ];
+}

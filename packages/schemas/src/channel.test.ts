@@ -20,7 +20,7 @@ describe('createChannelSchema', () => {
   it('accepts an inbound channel and applies defaults', () => {
     const r = createChannelSchema.parse(inbound);
     expect(r.hl7Version).toBe('2.5.1');
-    expect(r.direction === 'inbound' && r.config.tls.enabled).toBe(false);
+    expect(r.direction === 'inbound' && r.transport === 'mllp' && r.config.tls.enabled).toBe(false);
     expect(r.direction === 'inbound' && r.delivery.timeoutMs).toBe(10_000);
   });
 
@@ -79,7 +79,7 @@ describe('tls config', () => {
   });
   it('outbound tls defaults rejectUnauthorized to false', () => {
     const r = createChannelSchema.parse({ name: 'o', direction: 'outbound', config: { host: 'h', port: 1, tls: { enabled: true } } });
-    expect(r.direction === 'outbound' && r.config.tls).toEqual({ enabled: true, rejectUnauthorized: false });
+    expect(r.direction === 'outbound' && r.transport === 'mllp' && r.config.tls).toEqual({ enabled: true, rejectUnauthorized: false });
   });
 });
 

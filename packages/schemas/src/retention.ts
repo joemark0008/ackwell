@@ -11,6 +11,8 @@ export const retentionRunSchema = z.object({
   /** Deleted messages per channel id (channels with 0 are omitted). */
   deleted: z.record(z.string(), z.number().int()),
   total: z.number().int(),
+  /** Files deleted from inbound file channels' processed folders (older than the channel's retention). */
+  filesDeleted: z.number().int().default(0),
   trigger: z.enum(['schedule', 'manual']),
 });
 export type RetentionRun = z.infer<typeof retentionRunSchema>;

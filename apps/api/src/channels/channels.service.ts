@@ -14,6 +14,7 @@ import { validationError } from '../common/zod.js';
 import { DB, pgError, type Db } from '../db/db.js';
 import { channels, type ChannelRow } from '../db/schema.js';
 import { WebhookSecretsService } from '../delivery/webhook-secrets.service.js';
+import { FileRootService } from '../files/file-root.service.js';
 
 @Injectable()
 export class ChannelsService {
@@ -21,6 +22,7 @@ export class ChannelsService {
     @Inject(DB) private readonly db: Db,
     @Inject(ENV) private readonly env: Env,
     private readonly secrets: WebhookSecretsService,
+    private readonly files: FileRootService,
   ) {}
 
   async list(): Promise<Channel[]> {
@@ -34,6 +36,7 @@ export class ChannelsService {
 
   /** Inbound channels get their first webhook signing secret here; it is returned once. */
   async create(input: CreateChannel): Promise<CreateChannelResponse> {
+    if (input.transport === 'file') this.files.assertEnabled();
     this.assertPortInRange(input);
     try {
       return await this.db.transaction(async (tx) => {
@@ -42,6 +45,7 @@ export class ChannelsService {
           .values({
             name: input.name,
             direction: input.direction,
+            transport: input.transport,
             hl7Version: input.hl7Version,
             retentionDays: input.retentionDays ?? this.env.RETENTION_DEFAULT_DAYS,
             config: input.config,
@@ -75,6 +79,7 @@ export class ChannelsService {
     const merged = {
       name: patch.name ?? row.name,
       direction: row.direction,
+      transport: row.transport,
       hl7Version: patch.hl7Version ?? row.hl7Version,
       retentionDays: patch.retentionDays ?? row.retentionDays,
       config,
@@ -127,7 +132,7 @@ export class ChannelsService {
    * update that enables TLS without a `key` keeps the stored key. `hasKey` (response-only) is dropped.
    */
   private carryOverTlsKey(config: Record<string, unknown>, row: ChannelRow): Record<string, unknown> {
-    if (row.direction !== 'inbound') return config;
+    if (row.direction !== 'inbound' || row.transport !== 'mllp') return config;
     const tls = config.tls;
     if (!tls || typeof tls !== 'object') return config;
     const { hasKey: _hasKey, ...rest } = tls as Record<string, unknown>;
@@ -145,7 +150,7 @@ export class ChannelsService {
   }
 
   private assertPortInRange(input: CreateChannel): void {
-    if (input.direction !== 'inbound') return;
+    if (input.direction !== 'inbound' || input.transport !== 'mllp') return;
     const range = this.env.MLLP_PORT_RANGE;
     if (!isPortInRange(input.config.port, range)) {
       throw new BadRequestException({
@@ -167,6 +172,13 @@ function mapUniqueViolation(e: unknown): unknown {
       message: 'Another inbound channel already uses this port',
     });
   }
+  if (pg.constraint === 'channels_inbound_folder_unique') {
+    return new ConflictException({
+      statusCode: 409,
+      code: 'FOLDER_IN_USE',
+      message: 'Another inbound file channel already watches this folder',
+    });
+  }
   if (pg.constraint === 'channels_name_unique') {
     return new ConflictException({ statusCode: 409, code: 'NAME_TAKEN', message: 'Channel name already exists' });
   }
@@ -178,6 +190,7 @@ export function toChannel(row: ChannelRow): Channel {
     id: row.id,
     name: row.name,
     direction: row.direction,
+    transport: row.transport,
     status: row.status,
     hl7Version: row.hl7Version as Channel['hl7Version'],
     retentionDays: row.retentionDays,
@@ -190,7 +203,7 @@ export function toChannel(row: ChannelRow): Channel {
 
 /** Strips secrets from a stored config: the inbound TLS private key becomes `hasKey`. */
 function publicConfig(config: ChannelRow['config']): Channel['config'] {
-  if (!('allowlist' in config)) return config;
+  if (!('allowlist' in config)) return config; // outbound MLLP and both file configs hold no secrets
   const { key, ...tls } = config.tls ?? { enabled: false };
   if (!tls.enabled && !key && !tls.cert && !tls.ca) return { ...config, tls: { enabled: false } };
   return { ...config, tls: { ...tls, hasKey: Boolean(key) } };

@@ -1,13 +1,29 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBody, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import {
   channelSchema,
   createChannelResponseSchema,
   createChannelSchema,
+  fileErrorEntrySchema,
+  folderCheckRequestSchema,
+  folderCheckSchema,
   messageListQuerySchema,
   messageListSchema,
   updateChannelSchema,
   type CreateChannel,
+  type FolderCheckRequest,
   type MessageListQuery,
   type UpdateChannel,
 } from '@ackwell/schemas';
@@ -16,6 +32,7 @@ import { openApi, ZodPipe } from '../common/zod.js';
 import { MessagesService } from '../messages/messages.service.js';
 import { ChannelManager } from './channel-manager.service.js';
 import { ChannelsService } from './channels.service.js';
+import { FilesService } from './files.service.js';
 
 @ApiTags('channels')
 @Controller('channels')
@@ -24,7 +41,17 @@ export class ChannelsController {
     private readonly channels: ChannelsService,
     private readonly manager: ChannelManager,
     private readonly messages: MessagesService,
+    private readonly files: FilesService,
   ) {}
+
+  @Post('check-folder')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'File channels: check a folder inside the shared root (exists / readable / writable). Creates nothing.' })
+  @ApiBody({ schema: openApi(folderCheckRequestSchema) })
+  @ApiOkResponse({ schema: openApi(folderCheckSchema, 'output') })
+  checkFolder(@Body(new ZodPipe(folderCheckRequestSchema)) body: FolderCheckRequest) {
+    return this.files.checkFolder(body.directory);
+  }
 
   @Get()
   @ApiOkResponse({ schema: openApi(z.array(channelSchema), 'output') })
@@ -88,5 +115,20 @@ export class ChannelsController {
   ) {
     await this.channels.get(id); // 404 for unknown channels
     return this.messages.list(id, query);
+  }
+
+  @Get(':id/files/errors')
+  @ApiOperation({ summary: 'Inbound file channels: files moved to the error folder, with the reason.' })
+  @ApiOkResponse({ schema: openApi(z.array(fileErrorEntrySchema), 'output') })
+  listFileErrors(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.files.listErrors(id);
+  }
+
+  @Post(':id/files/errors/:name/retry')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Inbound file channels: move an error file back into the watched folder to import it again.' })
+  async retryFileError(@Param('id', new ParseUUIDPipe()) id: string, @Param('name') name: string) {
+    if (!name || name.length > 255) throw new BadRequestException({ statusCode: 400, code: 'VALIDATION_ERROR', message: 'Invalid file name' });
+    return { movedTo: await this.files.retryError(id, name) };
   }
 }

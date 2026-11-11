@@ -10,6 +10,7 @@ const channel: Channel = {
   id: '11111111-1111-4111-8111-111111111111',
   name: 'To LIS',
   direction: 'outbound',
+  transport: 'mllp',
   status: 'running',
   hl7Version: '2.5.1',
   retentionDays: 7,

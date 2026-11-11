@@ -26,8 +26,10 @@ export const messageSummarySchema = z.object({
   /** ACK we sent (inbound) or received (outbound): AA / AE / AR … */
   ackCode: z.string().nullable(),
   error: z.string().nullable(),
-  /** Sender address (inbound) */
+  /** Sender address (inbound MLLP) */
   remoteAddress: z.string().nullable(),
+  /** File transport: the file the message came from (inbound) or was written as (outbound), relative to the shared root. */
+  sourceFile: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

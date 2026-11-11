@@ -16,6 +16,13 @@ import { deliveryAttempts, messages, type ChannelRow, type DeliveryAttemptRow, t
 import { DeliveryService } from '../delivery/delivery.service.js';
 import { OutboundService } from '../outbound/outbound.service.js';
 
+export interface RecordInboundOptions {
+  /** File transport: file name relative to FILE_ROOT. */
+  sourceFile?: string;
+  /** Runs inside the insert transaction (e.g. to record the file import atomically with the message). */
+  onInserted?: (tx: Parameters<Parameters<Db['transaction']>[0]>[0], row: MessageRow) => Promise<void>;
+}
+
 export interface InboundRecord {
   message: MessageSummary;
   /** `AA` when stored, `AE` when the HL7 could not be parsed (stored anyway, status `failed`). */
@@ -37,7 +44,12 @@ export class MessagesService {
    * queue its delivery in the same transaction. Throws when the insert fails so the listener can
    * answer `AR` (nothing was persisted).
    */
-  async recordInbound(channel: ChannelRow, raw: string, remoteAddress: string | null): Promise<InboundRecord> {
+  async recordInbound(
+    channel: ChannelRow,
+    raw: string,
+    remoteAddress: string | null,
+    opts: RecordInboundOptions = {},
+  ): Promise<InboundRecord> {
     let json: Hl7Json | null = null;
     let parseError: string | null = null;
     try {
@@ -60,8 +72,10 @@ export class MessagesService {
           ackCode: ack,
           error: parseError,
           remoteAddress,
+          sourceFile: opts.sourceFile ?? null,
         })
         .returning();
+      if (opts.onInserted) await opts.onInserted(tx, inserted!);
       if (json && channel.delivery) await this.delivery.enqueue(inserted!.id, channel.delivery, tx);
       return inserted!;
     });
@@ -71,7 +85,7 @@ export class MessagesService {
     } else {
       this.log.log(
         { channelId: channel.id, messageId: message.id },
-        `Received ${message.messageType ?? '?'} ${message.controlId ?? ''} from ${remoteAddress ?? '?'}`,
+        `Received ${message.messageType ?? '?'} ${message.controlId ?? ''} from ${opts.sourceFile ?? remoteAddress ?? '?'}`,
       );
     }
     return { message, ack };
@@ -173,6 +187,7 @@ export function toSummary(row: MessageRow): MessageSummary {
     ackCode: row.ackCode,
     error: row.error,
     remoteAddress: row.remoteAddress,
+    sourceFile: row.sourceFile,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

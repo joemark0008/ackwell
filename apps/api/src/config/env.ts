@@ -29,6 +29,11 @@ const envSchema = z.object({
   MLLP_ADVERTISED_HOST: z.string().default('localhost'),
   /** Address the MLLP listeners bind inside the container/host. */
   MLLP_BIND_ADDRESS: z.string().default('0.0.0.0'),
+  /**
+   * File transport: the shared folder mounted into the container (e.g. /data/files). Channel folders
+   * (ORDER, RESULT, PROCESSED, ERROR) are relative to it. Unset = file channels cannot be created/started.
+   */
+  FILE_ROOT: optional(z.string().regex(/^\//, 'FILE_ROOT must be an absolute path')),
   RETENTION_DEFAULT_DAYS: z.coerce.number().int().min(1).max(3650).default(7),
   /** Base delay between delivery retries (exponential backoff, capped at 10 min). */
   DELIVERY_RETRY_DELAY_SECONDS: z.coerce.number().int().min(1).max(3600).default(10),

@@ -15,6 +15,7 @@ export class SettingsController {
     return {
       mllp: { host: this.env.MLLP_ADVERTISED_HOST, portRange: this.env.MLLP_PORT_RANGE },
       retentionDefaultDays: this.env.RETENTION_DEFAULT_DAYS,
+      files: { enabled: Boolean(this.env.FILE_ROOT) },
     };
   }
 }

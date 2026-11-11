@@ -19,6 +19,7 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 10. `[x]` **backend-dev:** Phase 7 — `GET /api/events` (SSE from `AppEvents`), `GET /api/messages` (cross-channel log), TLS for inbound listeners + outbound CA, prom-client `/metrics` (done 2026-11-11, [report](reports/2026-11-11-backend-phase7-hardening.md)).
 11. `[x]` **frontend-dev:** Phase 7 — SSE client replacing polling, **Messages** page, Monaco viewer, TLS form fields (2026-11-11, [report](reports/2026-11-11-frontend-phase7.md)).
 12. `[~]` **lead:** HANDOVER/NEXT updated; API-side live smoke done (metrics, 401s, MLLP → ACK). **Pending:** signed-in browser check of `/messages`, SSE through Cloudflare and Monaco (needs the admin password or a browser session).
+12b. `[x]` File transport (shared folder) built, tested and live on dev (2026-11-11, `docs/PLAN-FILE-TRANSPORT.md` → As built).
 13. `[ ]` **qa-engineer:** Phase 8 — test plan, fixtures, must-cover scenarios, Playwright flow on the live site.
 
 ---
@@ -117,6 +118,16 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 - [x] Generated types + runtime for HL7 2.3, 2.5.1, 2.7; send `{ flat }`; webhook `flat`; viewer switch; channel page note
 - [ ] Later: more versions (2.4, 2.5, 2.6, 2.7.1 are in the dictionary; 2.8 needs another source) — steps in the doc
 - [ ] Later: message-structure types (ADT_A01 groups), JSON Schema per version for webhook receivers
+
+## File transport (shared folder) — DONE 2026-11-11 (see `docs/PLAN-FILE-TRANSPORT.md`)
+- [x] Decided: 4 folders `ORDER` / `RESULT` / `PROCESSED` / `ERROR`, move to `PROCESSED`, one message per file
+- [x] All questions answered (§9): any share mounted by the user at `FILE_ROOT`; configurable file name + separator; only finished .hl7 files (§3a: staged + rename out, stable + parse in); `.hl7` only; build before Phase 8
+- [x] Schemas + migration (`transport`, `source_file`, `file_imports`), `FILE_ROOT` + path guard
+- [x] Outbound `FileWriter` (atomic write) behind the existing outbound worker
+- [x] Inbound `InboundFileWatcher` (chokidar 6, polling) in `ChannelManager` + import pipeline
+- [x] UI: connection type switch, folder check, connection card, error files
+- [x] Deployment: `/mnt/hl7share:/data/files:rslave` + `FILE_ROOT` on the Coolify service, migration live, health ok
+- [ ] **User:** mount the real share on the host at `/mnt/hl7share`, then create a Shared-folder channel and try one file each way
 
 ## Phase 8 — QA (owner: qa-engineer)
 - [ ] Test plan in `docs/qa/test-plan.md`

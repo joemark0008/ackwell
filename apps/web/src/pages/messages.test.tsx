@@ -20,7 +20,7 @@ const mk = (id: string, name: string, direction: 'inbound' | 'outbound'): Channe
     direction === 'inbound'
       ? { port: 6100, tls: { enabled: false }, allowlist: [] }
       : { host: 'h', port: 1, tls: { enabled: false }, retry: { maxAttempts: 3, backoffMs: 1000 } },
-  delivery: { type: 'webhook', url: 'https://x.test', timeoutMs: 10000, maxAttempts: 10 },
+  delivery: { type: 'webhook', url: 'https://x.test', timeoutMs: 10000, maxAttempts: 10, payload: 'both' },
   createdAt: '2026-11-11T00:00:00Z',
   updatedAt: '2026-11-11T00:00:00Z',
 } as unknown as Channel);
@@ -39,6 +39,7 @@ const msg = (id: string, channelId: string, direction: 'inbound' | 'outbound', t
   ackCode: 'AA',
   error: null,
   remoteAddress: null,
+  sourceFile: null,
   createdAt: '2026-11-11T12:00:00Z',
   updatedAt: '2026-11-11T12:00:00Z',
 });

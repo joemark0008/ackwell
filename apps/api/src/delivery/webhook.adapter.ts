@@ -30,6 +30,9 @@ export class WebhookAdapter implements DeliveryAdapter<WebhookDelivery> {
       return { ok: false, retryable: false, error: 'Message has no parsed JSON to deliver' };
     }
 
+    const format = delivery.payload ?? 'both';
+    const json = message.json as Hl7Json;
+    const flat = format === 'lossless' ? undefined : tryToFlat(json);
     const payload: WebhookPayload = {
       id: message.id,
       channelId: channel.id,
@@ -40,8 +43,9 @@ export class WebhookAdapter implements DeliveryAdapter<WebhookDelivery> {
       controlId: message.controlId,
       remoteAddress: message.remoteAddress,
       raw: message.raw,
-      json: message.json as Hl7Json,
-      flat: tryToFlat(message.json as Hl7Json),
+      // typed: only `flat`, but fall back to `json` when the version has no typed definition (flat null).
+      ...(format !== 'typed' || flat === null ? { json } : {}),
+      ...(format !== 'lossless' ? { flat } : {}),
     };
     const body = JSON.stringify(payload);
     const headers = {

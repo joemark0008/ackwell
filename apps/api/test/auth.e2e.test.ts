@@ -67,7 +67,7 @@ describe('auth', () => {
 
     await http().get('/api/channels').set('Cookie', cookie).expect(200);
     const settings = await http().get('/api/settings').set('Cookie', cookie).expect(200);
-    expect(settings.body).toEqual({ mllp: { host: 'localhost', portRange: { from: 6000, to: 6050 } }, retentionDefaultDays: 7 });
+    expect(settings.body).toEqual({ mllp: { host: 'localhost', portRange: { from: 6000, to: 6050 } }, retentionDefaultDays: 7, files: { enabled: false } });
 
     await http().post('/api/auth/sign-out').set('Origin', TEST_ORIGIN).set('Cookie', cookie).send({}).expect(200);
     await http().get('/api/channels').set('Cookie', cookie).expect(401);

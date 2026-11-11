@@ -179,7 +179,7 @@ export function MessageLog({
                         <AckBadge code={m.ackCode} />
                       </TableCell>
                       {!scope && (
-                        <TableCell className="hidden font-mono text-[13px] text-muted-foreground md:table-cell">{m.remoteAddress ?? '—'}</TableCell>
+                        <TableCell className="hidden font-mono text-[13px] text-muted-foreground md:table-cell">{m.sourceFile ?? m.remoteAddress ?? '—'}</TableCell>
                       )}
                     </TableRow>
                   );

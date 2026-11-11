@@ -59,7 +59,7 @@ describe('channels CRUD', () => {
       hl7Version: '2.5.1',
       retentionDays: 7,
       config: { port: 6001, tls: { enabled: false }, allowlist: [] },
-      delivery: { type: 'webhook', url: 'https://example.test/hook', timeoutMs: 10000, maxAttempts: 10 },
+      delivery: { type: 'webhook', url: 'https://example.test/hook', timeoutMs: 10000, maxAttempts: 10, payload: 'both' },
     });
   });
 

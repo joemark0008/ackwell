@@ -7,16 +7,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ChannelsListPage } from './channels-list';
 
-const settings = { mllp: { host: '172.16.10.30', portRange: { from: 6100, to: 6150 } }, retentionDefaultDays: 7 };
+const settings = { mllp: { host: '172.16.10.30', portRange: { from: 6100, to: 6150 } }, retentionDefaultDays: 7, files: { enabled: true } };
 const ch = (over: Partial<Channel>): Channel => ({
   id: crypto.randomUUID(),
   name: 'x',
   direction: 'inbound',
+  transport: 'mllp',
   status: 'stopped',
   hl7Version: '2.5.1',
   retentionDays: 7,
   config: { port: 6100, tls: { enabled: false }, allowlist: [] },
-  delivery: { type: 'webhook', url: 'https://x.test', timeoutMs: 10000, maxAttempts: 10 },
+  delivery: { type: 'webhook', url: 'https://x.test', timeoutMs: 10000, maxAttempts: 10, payload: 'both' },
   createdAt: '2026-11-11T00:00:00Z',
   updatedAt: '2026-11-11T00:00:00Z',
   ...over,

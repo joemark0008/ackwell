@@ -3,6 +3,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { AuthModule } from './auth/auth.module.js';
 import { ChannelsModule } from './channels/channels.module.js';
 import { EventsModule } from './common/events.js';
+import { FilesModule } from './files/files.module.js';
 import { ConfigModule } from './config/config.module.js';
 import { DbModule } from './db/db.module.js';
 import { DeliveryModule } from './delivery/delivery.module.js';
@@ -29,6 +30,7 @@ const pretty = process.env.NODE_ENV === 'development' && process.env.LOG_PRETTY 
       },
     }),
     DbModule,
+    FilesModule,
     EventsModule,
     QueueModule,
     MetricsModule,

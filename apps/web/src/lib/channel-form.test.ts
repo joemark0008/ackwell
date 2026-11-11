@@ -17,7 +17,7 @@ describe('channel form', () => {
       hl7Version: '2.5.1',
       direction: 'inbound',
       config: { port: 6101, tls: { enabled: false }, allowlist: ['10.0.0.0/8', '192.168.1.5'] },
-      delivery: { type: 'webhook', url: 'https://x.test/hook', timeoutMs: 10000, maxAttempts: 10 },
+      delivery: { type: 'webhook', url: 'https://x.test/hook', timeoutMs: 10000, maxAttempts: 10, payload: 'both' },
     });
   });
 
@@ -46,6 +46,7 @@ describe('channel form', () => {
       id: '00000000-0000-4000-8000-000000000001',
       name: 'Out',
       direction: 'outbound',
+      transport: 'mllp',
       status: 'stopped',
       hl7Version: '2.3',
       retentionDays: 30,
@@ -116,11 +117,12 @@ describe('channel form', () => {
         id: '00000000-0000-4000-8000-000000000002',
         name: 'Lab in',
         direction: 'inbound',
+        transport: 'mllp',
         status: 'stopped',
         hl7Version: '2.5.1',
         retentionDays: 7,
         config: { port: 6101, tls: { enabled: true, cert: CERT, requestCert: false, hasKey: true }, allowlist: [] },
-        delivery: { type: 'webhook', url: 'https://x.test', timeoutMs: 10000, maxAttempts: 10 },
+        delivery: { type: 'webhook', url: 'https://x.test', timeoutMs: 10000, maxAttempts: 10, payload: 'both' },
         createdAt: '',
         updatedAt: '',
       } as unknown as Channel;
@@ -150,5 +152,70 @@ describe('channel form', () => {
       const e = new ApiError(400, { code: 'VALIDATION_ERROR', issues: [{ path: 'config.tls.cert', message: 'Must be a PEM block' }, { path: 'config.tls.ca', message: 'x' }] } as any);
       expect(serverErrors(e).fields).toEqual({ 'config.tlsCert': 'Must be a PEM block', 'config.tlsCa': 'x' });
     });
+  });
+});
+
+describe('file transport form', () => {
+  it('builds an inbound file payload with defaults (RESULT / PROCESSED / ERROR)', async () => {
+    const f = emptyForm('inbound', undefined, 'file');
+    f.name = 'Results';
+    f.delivery.url = 'https://x.test/hook';
+    f.config.includeText = '*.hl7, *.txt';
+    expect(toPayload(f)).toEqual({
+      name: 'Results',
+      hl7Version: '2.5.1',
+      direction: 'inbound',
+      transport: 'file',
+      config: {
+        directory: 'RESULT',
+        processedDirectory: 'PROCESSED',
+        errorDirectory: 'ERROR',
+        include: ['*.hl7', '*.txt'],
+        stableMs: 2000,
+        usePolling: true,
+        pollIntervalMs: 2000,
+        encoding: 'utf8',
+      },
+      delivery: { type: 'webhook', url: 'https://x.test/hook', timeoutMs: 10000, maxAttempts: 10, payload: 'both' },
+    });
+    expect((await resolve(f)).errors).toEqual({});
+  });
+
+  it('builds an outbound file payload and validates folders and the file name', async () => {
+    const f = emptyForm('outbound', undefined, 'file');
+    f.name = 'Orders';
+    f.config.segmentSeparator = 'CRLF';
+    expect(toPayload(f)).toMatchObject({
+      transport: 'file',
+      config: { directory: 'ORDER', fileName: '{messageType}_{controlId}.hl7', segmentSeparator: 'CRLF', onExists: 'suffix' },
+    });
+    expect((await resolve(f)).errors).toEqual({});
+    f.config.directory = '../etc';
+    f.config.fileName = '{nope}.hl7';
+    const e = (await resolve(f)).errors as Record<string, any>;
+    expect(e.config.directory).toBeDefined();
+    expect(e.config.fileName.message).toMatch(/Unknown token/);
+  });
+
+  it('round-trips a stored file channel and maps folder conflicts', () => {
+    const ch: Channel = {
+      id: '22222222-2222-4222-8222-222222222222',
+      name: 'Results',
+      direction: 'inbound',
+      transport: 'file',
+      status: 'stopped',
+      hl7Version: '2.5.1',
+      retentionDays: 7,
+      config: { directory: 'lab/IN', processedDirectory: 'lab/DONE', errorDirectory: 'lab/BAD', include: ['*.hl7'], stableMs: 3000, usePolling: false, pollIntervalMs: 2000, encoding: 'latin1' },
+      delivery: { type: 'webhook', url: 'https://x.test/h', timeoutMs: 10000, maxAttempts: 10, payload: 'both' },
+      createdAt: '2026-11-11T00:00:00Z',
+      updatedAt: '2026-11-11T00:00:00Z',
+    };
+    const f = formFromChannel(ch);
+    expect(f.transport).toBe('file');
+    expect(f.config).toMatchObject({ directory: 'lab/IN', processedDirectory: 'lab/DONE', errorDirectory: 'lab/BAD', includeText: '*.hl7', stableMs: '3000', usePolling: false, encoding: 'latin1' });
+    expect(toPayload(f)).toMatchObject({ transport: 'file', config: { directory: 'lab/IN', stableMs: 3000, usePolling: false } });
+    const conflict = new ApiError(409, { statusCode: 409, code: 'FOLDER_IN_USE', message: 'x' });
+    expect(serverErrors(conflict).fields['config.directory']).toMatch(/already watches/);
   });
 });

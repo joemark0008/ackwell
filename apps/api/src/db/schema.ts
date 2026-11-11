@@ -10,10 +10,12 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import type { Delivery, InboundConfig, OutboundConfig } from '@ackwell/schemas';
+import type { Delivery, InboundConfig, InboundFileConfig, OutboundConfig, OutboundFileConfig } from '@ackwell/schemas';
 
 export const channelDirection = pgEnum('channel_direction', ['inbound', 'outbound']);
 export const channelStatus = pgEnum('channel_status', ['stopped', 'running', 'error']);
+export const channelTransport = pgEnum('channel_transport', ['mllp', 'file']);
+export const fileImportStatus = pgEnum('file_import_status', ['imported', 'error', 'duplicate']);
 export const messageStatus = pgEnum('message_status', [
   'received', // inbound: stored, ACK sent
   'queued', // outbound: accepted, waiting for the worker
@@ -39,10 +41,12 @@ export const channels = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     name: text('name').notNull(),
     direction: channelDirection('direction').notNull(),
+    /** MLLP (default, every channel before the file transport) or shared-folder files. Cannot change. */
+    transport: channelTransport('transport').notNull().default('mllp'),
     status: channelStatus('status').notNull().default('stopped'),
     hl7Version: text('hl7_version').notNull(),
     retentionDays: integer('retention_days').notNull(),
-    config: jsonb('config').$type<InboundConfig | OutboundConfig>().notNull(),
+    config: jsonb('config').$type<InboundConfig | OutboundConfig | InboundFileConfig | OutboundFileConfig>().notNull(),
     delivery: jsonb('delivery').$type<Delivery>(),
     ...timestamps,
   },
@@ -51,7 +55,11 @@ export const channels = pgTable(
     // One inbound listener per port.
     uniqueIndex('channels_inbound_port_unique')
       .on(sql`((${t.config} ->> 'port'))`)
-      .where(sql`${t.direction} = 'inbound'`),
+      .where(sql`${t.direction} = 'inbound' and ${t.transport} = 'mllp'`),
+    // One inbound file channel per watched folder (case-insensitive, like SMB shares).
+    uniqueIndex('channels_inbound_folder_unique')
+      .on(sql`(lower(${t.config} ->> 'directory'))`)
+      .where(sql`${t.direction} = 'inbound' and ${t.transport} = 'file'`),
   ],
 );
 
@@ -72,6 +80,8 @@ export const messages = pgTable(
     error: text('error'),
     /** Sender IP for inbound messages. */
     remoteAddress: text('remote_address'),
+    /** File transport: file name relative to FILE_ROOT (inbound: where it came from; outbound: what was written). */
+    sourceFile: text('source_file'),
     ...timestamps,
   },
   (t) => [
@@ -142,3 +152,34 @@ export type DeliveryAttemptRow = typeof deliveryAttempts.$inferSelect;
 
 // ---- Better Auth tables (see auth-schema.ts) ----
 export * from './auth-schema.js';
+
+/**
+ * Inbound file channels: one row per file seen in the watched folder. The sha256 makes imports idempotent
+ * (a crash between "stored" and "moved", or the same file dropped twice, never creates a second message).
+ */
+export const fileImports = pgTable(
+  'file_imports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    channelId: uuid('channel_id')
+      .notNull()
+      .references(() => channels.id, { onDelete: 'cascade' }),
+    fileName: text('file_name').notNull(),
+    size: integer('size').notNull(),
+    sha256: text('sha256').notNull(),
+    status: fileImportStatus('status').notNull(),
+    messageId: uuid('message_id').references(() => messages.id, { onDelete: 'set null' }),
+    /** Where the file was moved (relative to FILE_ROOT), or null if the move failed. */
+    movedTo: text('moved_to'),
+    error: text('error'),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('file_imports_channel_sha_imported_unique')
+      .on(t.channelId, t.sha256)
+      .where(sql`${t.status} = 'imported'`),
+    index('file_imports_channel_created_idx').on(t.channelId, t.createdAt),
+  ],
+);
+
+export type FileImportRow = typeof fileImports.$inferSelect;

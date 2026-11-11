@@ -2,6 +2,7 @@ import {
   createChannelSchema,
   type Channel,
   type ChannelDirection,
+  type ChannelTransport,
   type CreateChannelInput,
   type Hl7Version,
 } from '@ackwell/schemas';
@@ -15,6 +16,8 @@ import { ApiError } from './api';
 export interface ChannelFormValues {
   name: string;
   direction: ChannelDirection;
+  /** MLLP (network) or shared-folder files; fixed after creation. */
+  transport: ChannelTransport;
   hl7Version: Hl7Version;
   retentionDays: string; // '' = server default
   config: {
@@ -31,18 +34,32 @@ export interface ChannelFormValues {
     ackTimeoutMs: string;
     retryMaxAttempts: string;
     retryBackoffSeconds: string;
+    // ---- file transport ----
+    directory: string; // inbound: watched (RESULT); outbound: order folder (ORDER)
+    processedDirectory: string;
+    errorDirectory: string;
+    includeText: string; // comma/line separated patterns
+    stableMs: string;
+    usePolling: boolean;
+    pollIntervalMs: string;
+    fileName: string;
+    segmentSeparator: 'CR' | 'CRLF' | 'LF';
+    encoding: 'utf8' | 'latin1';
+    onExists: 'suffix' | 'fail';
   };
   delivery: {
     url: string;
     timeoutMs: string;
     maxAttempts: string;
+    payload: 'both' | 'typed' | 'lossless';
   };
 }
 
-export function emptyForm(direction: ChannelDirection, suggestedPort?: number): ChannelFormValues {
+export function emptyForm(direction: ChannelDirection, suggestedPort?: number, transport: ChannelTransport = 'mllp'): ChannelFormValues {
   return {
     name: '',
     direction,
+    transport,
     hl7Version: '2.5.1',
     retentionDays: '',
     config: {
@@ -59,17 +76,49 @@ export function emptyForm(direction: ChannelDirection, suggestedPort?: number): 
       ackTimeoutMs: '30000',
       retryMaxAttempts: '5',
       retryBackoffSeconds: '10',
+      directory: direction === 'inbound' ? 'RESULT' : 'ORDER',
+      processedDirectory: 'PROCESSED',
+      errorDirectory: 'ERROR',
+      includeText: '*.hl7',
+      stableMs: '2000',
+      usePolling: true,
+      pollIntervalMs: '2000',
+      fileName: '{messageType}_{controlId}.hl7',
+      segmentSeparator: 'CR',
+      encoding: 'utf8',
+      onExists: 'suffix',
     },
-    delivery: { url: '', timeoutMs: '10000', maxAttempts: '10' },
+    delivery: { url: '', timeoutMs: '10000', maxAttempts: '10', payload: 'both' },
   };
 }
 
 export function formFromChannel(ch: Channel): ChannelFormValues {
-  const f = emptyForm(ch.direction);
+  const f = emptyForm(ch.direction, undefined, ch.transport);
   f.name = ch.name;
   f.hl7Version = ch.hl7Version;
   f.retentionDays = String(ch.retentionDays);
   const c = ch.config as Record<string, unknown>;
+  if (ch.transport === 'file') {
+    const str = (k: string) => (c[k] === undefined ? f.config[k as 'directory'] : String(c[k]));
+    f.config.directory = str('directory');
+    f.config.processedDirectory = str('processedDirectory');
+    f.config.errorDirectory = str('errorDirectory');
+    f.config.includeText = ((c.include as string[] | undefined) ?? ['*.hl7']).join(', ');
+    f.config.stableMs = str('stableMs');
+    f.config.pollIntervalMs = str('pollIntervalMs');
+    f.config.usePolling = c.usePolling === undefined ? true : Boolean(c.usePolling);
+    f.config.fileName = str('fileName');
+    f.config.segmentSeparator = (c.segmentSeparator as ChannelFormValues['config']['segmentSeparator']) ?? 'CR';
+    f.config.encoding = (c.encoding as ChannelFormValues['config']['encoding']) ?? 'utf8';
+    f.config.onExists = (c.onExists as ChannelFormValues['config']['onExists']) ?? 'suffix';
+    const retry = c.retry as { maxAttempts?: number; backoffSeconds?: number } | undefined;
+    f.config.retryMaxAttempts = String(retry?.maxAttempts ?? '5');
+    f.config.retryBackoffSeconds = String(retry?.backoffSeconds ?? '10');
+    if (ch.direction === 'inbound' && ch.delivery) {
+      f.delivery = { url: ch.delivery.url, timeoutMs: String(ch.delivery.timeoutMs), maxAttempts: String(ch.delivery.maxAttempts), payload: ch.delivery.payload ?? 'both' };
+    }
+    return f;
+  }
   f.config.port = String(c.port ?? '');
   const tls = (c.tls ?? {}) as {
     enabled?: boolean;
@@ -92,6 +141,7 @@ export function formFromChannel(ch: Channel): ChannelFormValues {
         url: ch.delivery.url,
         timeoutMs: String(ch.delivery.timeoutMs),
         maxAttempts: String(ch.delivery.maxAttempts),
+        payload: ch.delivery.payload ?? 'both',
       };
     }
   } else {
@@ -137,6 +187,50 @@ export function toPayload(v: ChannelFormValues): CreateChannelInput {
     hl7Version: v.hl7Version,
     ...(num(v.retentionDays) !== undefined ? { retentionDays: num(v.retentionDays) } : {}),
   };
+  const delivery = {
+    type: 'webhook',
+    url: v.delivery.url.trim(),
+    timeoutMs: num(v.delivery.timeoutMs),
+    maxAttempts: num(v.delivery.maxAttempts),
+    payload: v.delivery.payload,
+  };
+  if (v.transport === 'file') {
+    const c = v.config;
+    if (v.direction === 'inbound') {
+      return {
+        ...base,
+        direction: 'inbound',
+        transport: 'file',
+        config: {
+          directory: c.directory.trim(),
+          processedDirectory: c.processedDirectory.trim(),
+          errorDirectory: c.errorDirectory.trim(),
+          include: c.includeText
+            .split(/[\n,]/)
+            .map((s) => s.trim())
+            .filter(Boolean),
+          stableMs: num(c.stableMs),
+          usePolling: c.usePolling,
+          pollIntervalMs: num(c.pollIntervalMs),
+          encoding: c.encoding,
+        },
+        delivery,
+      } as CreateChannelInput;
+    }
+    return {
+      ...base,
+      direction: 'outbound',
+      transport: 'file',
+      config: {
+        directory: c.directory.trim(),
+        fileName: c.fileName.trim(),
+        segmentSeparator: c.segmentSeparator,
+        encoding: c.encoding,
+        onExists: c.onExists,
+        retry: { maxAttempts: num(c.retryMaxAttempts), backoffSeconds: num(c.retryBackoffSeconds) },
+      },
+    } as CreateChannelInput;
+  }
   if (v.direction === 'inbound') {
     return {
       ...base,
@@ -149,12 +243,7 @@ export function toPayload(v: ChannelFormValues): CreateChannelInput {
           .map((s) => s.trim())
           .filter(Boolean),
       },
-      delivery: {
-        type: 'webhook',
-        url: v.delivery.url.trim(),
-        timeoutMs: num(v.delivery.timeoutMs),
-        maxAttempts: num(v.delivery.maxAttempts),
-      },
+      delivery,
     } as CreateChannelInput;
   }
   return {
@@ -173,6 +262,7 @@ export function toPayload(v: ChannelFormValues): CreateChannelInput {
 /** API path → form field name. */
 export function fieldForPath(path: string): string {
   if (path.startsWith('config.allowlist')) return 'config.allowlistText';
+  if (path.startsWith('config.include')) return 'config.includeText';
   if (path === 'config.tls.enabled' || path === 'config.tls') return 'config.tlsEnabled';
   if (path === 'config.tls.cert') return 'config.tlsCert';
   if (path === 'config.tls.key') return 'config.tlsKey';
@@ -197,9 +287,9 @@ const KEY_PLACEHOLDER = '-----BEGIN PRIVATE KEY-----\nstored\n-----END PRIVATE K
 
 /** RHF resolver backed by the shared API schema (same rules the server enforces). */
 export const channelResolver: Resolver<ChannelFormValues> = async (values) => {
-  const payload = toPayload(values) as { direction: string; config: { tls: Record<string, unknown> } };
+  const payload = toPayload(values) as { direction: string; config: { tls?: Record<string, unknown> } };
   // Edit with a stored key and no new key typed: the API keeps it, so validate as if present.
-  if (payload.direction === 'inbound' && payload.config.tls.enabled && !payload.config.tls.key && values.config.tlsHasKey) {
+  if (payload.direction === 'inbound' && payload.config.tls?.enabled && !payload.config.tls.key && values.config.tlsHasKey) {
     payload.config.tls = { ...payload.config.tls, key: KEY_PLACEHOLDER };
   }
   const r = createChannelSchema.safeParse(payload);
@@ -234,6 +324,10 @@ export function serverErrors(e: unknown): { fields: Record<string, string>; form
       return { fields: { 'config.port': 'Another inbound channel already listens on this port' } };
     case 'PORT_OUT_OF_RANGE':
       return { fields: { 'config.port': e.body?.message ?? 'Port outside the allowed range' } };
+    case 'FOLDER_IN_USE':
+      return { fields: { 'config.directory': 'Another inbound file channel already watches this folder' } };
+    case 'FILES_DISABLED':
+      return { fields: {}, form: e.message };
     case 'NAME_TAKEN':
       return { fields: { name: 'A channel with this name already exists' } };
     case 'CHANNEL_RUNNING':
@@ -252,7 +346,7 @@ export function serverErrors(e: unknown): { fields: Record<string, string>; form
 export function nextFreePort(range: { from: number; to: number }, channels: Channel[], exceptId?: string) {
   const used = new Set(
     channels
-      .filter((c) => c.direction === 'inbound' && c.id !== exceptId)
+      .filter((c) => c.direction === 'inbound' && c.transport !== 'file' && c.id !== exceptId)
       .map((c) => (c.config as { port: number }).port),
   );
   for (let p = range.from; p <= range.to; p++) if (!used.has(p)) return p;

@@ -10,6 +10,10 @@
 # machine's LAN IP only. This host-port mapping is an exception to /root/project/CLAUDE.md §2,
 # approved by the user on 2026-11-11 for this project. (6000-6050 clashes with Coolify's own 6001-6002.)
 # HL7 senders connect to 172.16.10.30:<channel port>.
+#
+# File transport: the HL7 share is mounted on the host at /mnt/hl7share (by the admin, e.g. CIFS/NFS in
+# /etc/fstab) and only that root goes into the container as FILE_ROOT=/data/files. ORDER/RESULT/PROCESSED/
+# ERROR are folders inside it. rslave lets a share mounted on the host after start show up in the container.
 services:
   app:
     image: node:22-alpine
@@ -28,12 +32,14 @@ services:
       - MLLP_PORT_RANGE=6100-6150
       - MLLP_ADVERTISED_HOST=${MLLP_BIND_IP:-172.16.10.30}
       - RETENTION_DEFAULT_DAYS=7
+      - FILE_ROOT=/data/files
       - LOG_LEVEL=info
       - TURBO_TELEMETRY_DISABLED=1
       - NPM_CONFIG_UPDATE_NOTIFIER=false
     volumes:
       - /root/project/ackwell:/app
       - ackwell-node-modules:/app/node_modules
+      - /mnt/hl7share:/data/files:rslave
     expose:
       - "5173"
       - "3000"

@@ -2,6 +2,10 @@ import type { AppSettings, Channel } from '@ackwell/schemas';
 
 /** Inbound: where senders connect. Outbound: where Ackwell sends. */
 export function endpointLabel(c: Channel, settings?: AppSettings): string {
+  if (c.transport === 'file') {
+    const dir = (c.config as { directory: string }).directory;
+    return c.direction === 'inbound' ? `${dir}/` : `→ ${dir}/`;
+  }
   const cfg = c.config as { port: number; host?: string };
   if (c.direction === 'inbound') return `${settings?.mllp.host ?? 'server'}:${cfg.port}`;
   return `→ ${cfg.host}:${cfg.port}`;

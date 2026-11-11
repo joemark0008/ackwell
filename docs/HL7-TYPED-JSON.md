@@ -18,6 +18,16 @@ Where you can see it:
 - **Channel page → Configuration → "Typed JSON"**: says whether the channel's HL7 version has the typed form.
 - **Message viewer**: JSON pane shows a *Typed / Lossless* switch only when the message's version is supported.
 - **Webhooks**: `flat` is `null` for other versions.
+
+### Webhook JSON format (per inbound channel)
+
+Channel form → Delivery → **JSON format** (`delivery.payload`). `raw` is always sent.
+
+| Value | Body has | Notes |
+|---|---|---|
+| `both` (default) | `json` + `flat` | what channels created before this option send |
+| `typed` | `flat` | if the version has no typed definition, `flat` is `null` and `json` is sent instead |
+| `lossless` | `json` | keeps every field, repetition and Z-segment |
 - **Send API**: `{ "flat": … }` with another `msh_12` → 400 `msh_12 must be one of 2.3, 2.5.1, 2.7`.
 - **TypeScript**: `msh_12` accepts only `'2.3' | '2.5.1' | '2.7'`.
 
