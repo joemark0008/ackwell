@@ -33,7 +33,8 @@ export class OutboundController {
     summary: 'Queue a message on an outbound channel',
     description:
       'Body: `{ "hl7": "MSH|^~\\\\&|…" }` (raw text, segments separated by \\r or \\n) or the generic JSON ' +
-      '`{ "segments": [{ "id": "MSH", "fields": [...] }, …] }`. Empty MSH-7 / MSH-10 / MSH-12 are filled in. ' +
+      '`{ "segments": [{ "id": "MSH", "fields": [...] }, …] }`, or the typed flat JSON for HL7 2.3 / 2.5.1 / 2.7 ' +
+      '`{ "flat": { "msh_9_1": "ADT", "msh_9_2": "A01", "msh_12": "2.7", "segments": [{ "segment": "PID", … }] } }`. Empty MSH-7 / MSH-10 / MSH-12 are filled in. ' +
       'Auth: `Authorization: Bearer <api key>` for the channel, or a dashboard session. ' +
       'Returns the queued message; poll GET /api/messages/:id for the ACK.',
   })

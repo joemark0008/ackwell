@@ -113,6 +113,11 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 - [ ] Signed-in browser check on the live site: `/messages` row appears on an MLLP send without reload (SSE through Cloudflare/Traefik), Monaco renders, no external (CDN) request in the network tab
 - [ ] Follow-ups (not blocking): encrypt the inbound TLS private key at rest; log inbound TLS handshake failures
 
+## Typed flat JSON — DONE 2026-11-11 (see `docs/HL7-TYPED-JSON.md`)
+- [x] Generated types + runtime for HL7 2.3, 2.5.1, 2.7; send `{ flat }`; webhook `flat`; viewer switch; channel page note
+- [ ] Later: more versions (2.4, 2.5, 2.6, 2.7.1 are in the dictionary; 2.8 needs another source) — steps in the doc
+- [ ] Later: message-structure types (ADT_A01 groups), JSON Schema per version for webhook receivers
+
 ## Phase 8 — QA (owner: qa-engineer)
 - [ ] Test plan in `docs/qa/test-plan.md`
 - [ ] HL7 fixtures in `fixtures/hl7/`

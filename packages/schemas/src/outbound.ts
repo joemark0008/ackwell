@@ -1,15 +1,19 @@
 import { z } from 'zod';
 import { hl7JsonSchema } from './hl7';
+import { hl7FlatSchema } from './hl7-flat';
 import { messageSummarySchema } from './message';
 
 /**
- * Body of POST /channels/:id/send. Either raw HL7 text or the generic lossless JSON
- * (`{ segments: [...] }`, see hl7.ts). Empty MSH-7 (timestamp), MSH-10 (control id) and MSH-12
- * (version) are filled in by the server.
+ * Body of POST /channels/:id/send. One of:
+ * - raw HL7 text: `{ hl7: "MSH|^~\\&|…" }`
+ * - the generic lossless JSON: `{ segments: [...] }` (see hl7.ts)
+ * - the typed flat JSON: `{ flat: { msh_9_1: 'ADT', msh_12: '2.7', segments: [...] } }` (see hl7-flat)
+ * Empty MSH-7 (timestamp), MSH-10 (control id) and MSH-12 (version) are filled in by the server.
  */
 export const sendRequestSchema = z.union([
   z.object({ hl7: z.string().trim().min(8, 'HL7 text is required') }).strict(),
   hl7JsonSchema,
+  z.object({ flat: hl7FlatSchema }).strict(),
 ]);
 export type SendRequest = z.infer<typeof sendRequestSchema>;
 export type SendRequestInput = z.input<typeof sendRequestSchema>;

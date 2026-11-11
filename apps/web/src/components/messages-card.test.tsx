@@ -1,4 +1,4 @@
-import type { Channel, MessageDetail, MessageList } from '@ackwell/schemas';
+import { parseHl7, type Channel, type MessageDetail, type MessageList } from '@ackwell/schemas';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -40,10 +40,7 @@ const detail: MessageDetail = {
   createdAt: '2026-11-11T12:00:00Z',
   updatedAt: '2026-11-11T12:00:00Z',
   raw: RAW,
-  json: {
-    delimiters: { field: '|', component: '^', repeat: '~', escape: '\\', subcomponent: '&' },
-    segments: [{ id: 'MSH', fields: ['|', '^~\\&', 'LAB'] }],
-  },
+  json: parseHl7(RAW),
   attempts: [],
 };
 
@@ -108,5 +105,16 @@ describe('MessagesCard', () => {
     expect(raw.length).toBeGreaterThan(0);
     expect(raw[0]!.textContent).toContain('\nPID|1||123^^^HOSP^MR||DOE^JANE');
     expect(dialog.getByText('172.16.10.5')).toBeInTheDocument();
+
+    // JSON pane: typed (flat) by default for a supported version, lossless on demand.
+    const jsonPre = () =>
+      dialog.getAllByText((_, el) => el?.tagName === 'PRE' && (el.textContent ?? '').trimStart().startsWith('{'))[0]!;
+    await userEvent.setup().click(dialog.getByRole('tab', { name: 'JSON' })); // narrow layout: tabs
+    expect(await dialog.findByText('JSON · typed HL7 2.5.1')).toBeInTheDocument();
+    expect(jsonPre().textContent).toContain('"msh_9_1": "ORU"');
+    expect(jsonPre().textContent).toContain('"pid_5_1_1": "DOE"');
+    await userEvent.setup().click(dialog.getByRole('radio', { name: 'lossless' }));
+    expect(dialog.getByText('JSON · lossless')).toBeInTheDocument();
+    expect(jsonPre().textContent).toContain('"id": "MSH"');
   });
 });

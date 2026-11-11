@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { channelSchema } from './channel';
 import { hl7JsonSchema } from './hl7';
+import { hl7FlatSchema } from './hl7-flat';
 
 /** A webhook signing secret as listed by the API (the secret itself is never returned after creation). */
 export const webhookSecretSchema = z.object({
@@ -41,6 +42,11 @@ export const webhookPayloadSchema = z.object({
   remoteAddress: z.string().nullable(),
   raw: z.string(),
   json: hl7JsonSchema,
+  /**
+   * Typed flat JSON (`msh_9_1`, `pid_5[0].pid_5_1_1`, …) when MSH-12 is a version with a flat
+   * definition (2.3, 2.5.1, 2.7) and every non-Z segment is defined in it; otherwise null.
+   */
+  flat: hl7FlatSchema.nullable(),
 });
 export type WebhookPayload = z.infer<typeof webhookPayloadSchema>;
 

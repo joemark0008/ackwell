@@ -161,6 +161,35 @@ describe('outbound send', () => {
     expect(m.json.segments[1].fields[4]).toEqual(['DOE', 'JOHN']);
   });
 
+  it('accepts the typed flat JSON form and rejects bad keys with their path', async () => {
+    const flat = {
+      msh_3_1: 'ACKWELL',
+      msh_4_1: 'HOSP',
+      msh_9_1: 'ADT',
+      msh_9_2: 'A01',
+      msh_11_1: 'P',
+      msh_12: '2.5.1',
+      segments: [
+        { segment: 'PID', pid_1: '1', pid_3: [{ pid_3_1: 'MRN7', pid_3_5: 'MR' }], pid_5: [{ pid_5_1_1: 'ROE', pid_5_2: 'ANN' }] },
+        { segment: 'ZXX', fields: ['custom'] },
+      ],
+    };
+    const r = await http().post(`/api/channels/${chId}/send`).send({ flat }).expect(201);
+    expect(r.body.messageType).toBe('ADT^A01');
+    const m = await settled(r.body.id, ['sent', 'rejected', 'failed']);
+    expect(m.status).toBe('sent');
+    const [msh, pid, zxx] = m.raw.split(CR);
+    expect(msh).toMatch(/^MSH\|\^~\\&\|ACKWELL\|HOSP\|\|\|\d{14}\|\|ADT\^A01\|AW[0-9A-Z]+\|P\|2\.5\.1$/);
+    expect(pid).toBe('PID|1||MRN7^^^^MR||ROE^ANN');
+    expect(zxx).toBe('ZXX|custom');
+
+    const bad = await http()
+      .post(`/api/channels/${chId}/send`)
+      .send({ flat: { ...flat, segments: [{ segment: 'PID', pid_5_1_1: 'ROE' }] } })
+      .expect(400);
+    expect(JSON.stringify(bad.body)).toContain('pid_5_1_1');
+  });
+
   it('marks AE as rejected without retrying', async () => {
     const r = await http().post(`/api/channels/${chId}/send`).send({ hl7: RAW('AE001') }).expect(201);
     const m = await settled(r.body.id, ['sent', 'rejected', 'failed']);

@@ -1,6 +1,6 @@
-import type { MessageDetail } from '@ackwell/schemas';
+import { tryToFlat, type Hl7Json, type MessageDetail } from '@ackwell/schemas';
 import { AlertCircle, Loader2, RotateCw } from 'lucide-react';
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { AckBadge, MessageStatusBadge } from '@/components/badges';
 import { CopyButton } from '@/components/copy-button';
@@ -19,7 +19,17 @@ export function hl7Lines(raw: string): string {
 
 const CodeEditor = lazy(() => import('@/components/code-editor'));
 
-function Pane({ title, text, lang }: { title: string; text: string; lang: 'hl7' | 'json' }) {
+function Pane({
+  title,
+  text,
+  lang,
+  actions,
+}: {
+  title: string;
+  text: string;
+  lang: 'hl7' | 'json';
+  actions?: React.ReactNode;
+}) {
   const fallback = (
     <pre
       data-lang={lang}
@@ -31,8 +41,11 @@ function Pane({ title, text, lang }: { title: string; text: string; lang: 'hl7' 
   return (
     <div className="flex h-72 min-h-0 flex-col overflow-hidden rounded-lg border bg-card lg:h-96">
       <div className="flex shrink-0 items-center justify-between border-b py-1 pr-1 pl-3 text-xs text-muted-foreground">
-        {title}
-        <CopyButton value={text} label={`Copy ${title}`} />
+        <span className="truncate">{title}</span>
+        <div className="flex shrink-0 items-center gap-1">
+          {actions}
+          <CopyButton value={text} label={`Copy ${title}`} />
+        </div>
       </div>
       <div className="min-h-0 flex-1">
         <Suspense fallback={fallback}>
@@ -84,10 +97,47 @@ function useWide() {
   return wide;
 }
 
+type JsonFormat = 'typed' | 'lossless';
+
+/** Typed (flat, per HL7 version) vs lossless (positional) JSON switch. */
+function FormatSwitch({ value, onChange }: { value: JsonFormat; onChange: (f: JsonFormat) => void }) {
+  return (
+    <div role="radiogroup" aria-label="JSON format" className="flex rounded-md border p-0.5">
+      {(['typed', 'lossless'] as const).map((f) => (
+        <button
+          key={f}
+          type="button"
+          role="radio"
+          aria-checked={value === f}
+          onClick={() => onChange(f)}
+          className={
+            'rounded px-2 py-0.5 text-[11px] capitalize transition-colors ' +
+            (value === f ? 'bg-secondary font-medium text-foreground' : 'text-muted-foreground hover:text-foreground')
+          }
+        >
+          {f}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function Body({ m }: { m: MessageDetail }) {
   const wide = useWide();
   const raw = m.raw ? hl7Lines(m.raw) : '';
-  const json = m.json ? JSON.stringify(m.json, null, 2) : '';
+  // Typed view: only for HL7 2.3 / 2.5.1 / 2.7 with every non-Z segment defined in that version.
+  const flat = useMemo(() => {
+    try {
+      return m.json ? tryToFlat(m.json as Hl7Json) : null;
+    } catch {
+      return null;
+    }
+  }, [m.json]);
+  const [format, setFormat] = useState<JsonFormat>('typed');
+  const shown = flat && format === 'typed' ? flat : m.json;
+  const json = shown ? JSON.stringify(shown, null, 2) : '';
+  const jsonTitle = flat ? (format === 'typed' ? `JSON · typed HL7 ${flat.msh_12}` : 'JSON · lossless') : 'JSON';
+  const switcher = flat ? <FormatSwitch value={format} onChange={setFormat} /> : undefined;
   return (
     <>
       <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-5">
@@ -132,7 +182,7 @@ function Body({ m }: { m: MessageDetail }) {
       {wide ? (
         <div className="grid min-h-0 flex-1 grid-cols-2 gap-3">
           <Pane title="Raw HL7" text={raw} lang="hl7" />
-          <Pane title="JSON" text={json} lang="json" />
+          <Pane title={jsonTitle} text={json} lang="json" actions={switcher} />
         </div>
       ) : (
         <Tabs defaultValue="hl7" className="flex min-h-0 flex-1 flex-col">
@@ -144,7 +194,7 @@ function Body({ m }: { m: MessageDetail }) {
             <Pane title="Raw HL7" text={raw} lang="hl7" />
           </TabsContent>
           <TabsContent value="json" className="flex min-h-0 flex-1 flex-col">
-            <Pane title="JSON" text={json} lang="json" />
+            <Pane title={jsonTitle} text={json} lang="json" actions={switcher} />
           </TabsContent>
         </Tabs>
       )}
@@ -160,7 +210,10 @@ export function MessageDialog({ messageId, onClose }: { messageId: string | null
       <DialogContent className="flex max-h-[90vh] flex-col gap-4 sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle className="font-mono">{title}</DialogTitle>
-          <DialogDescription>Raw HL7 as received and its lossless JSON. Escapes are kept as sent.</DialogDescription>
+          <DialogDescription>
+            Raw HL7 as received and its JSON: typed keys (msh_9_1, pid_5…) for HL7 2.3, 2.5.1 and 2.7, or the lossless
+            positional form. Escapes are kept as sent.
+          </DialogDescription>
         </DialogHeader>
         {messageId && isPending ? (
           <div className="space-y-3">

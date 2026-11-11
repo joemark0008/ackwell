@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Hl7Json, WebhookPayload } from '@ackwell/schemas';
+import { tryToFlat, type Hl7Json, type WebhookPayload } from '@ackwell/schemas';
 import { z } from 'zod';
 import type { DeliveryAdapter, DeliveryContext, DeliveryResult } from './delivery-adapter.js';
 import { signedHeaders } from './standard-webhooks.js';
@@ -41,6 +41,7 @@ export class WebhookAdapter implements DeliveryAdapter<WebhookDelivery> {
       remoteAddress: message.remoteAddress,
       raw: message.raw,
       json: message.json as Hl7Json,
+      flat: tryToFlat(message.json as Hl7Json),
     };
     const body = JSON.stringify(payload);
     const headers = {

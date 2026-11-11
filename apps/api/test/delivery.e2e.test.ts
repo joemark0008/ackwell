@@ -115,6 +115,12 @@ describe('webhook delivery', () => {
     });
     expect(hit.headers['webhook-id']).toBe(payload.id);
     expect(payload.json.segments[0].id).toBe('MSH');
+    expect(payload.flat).toMatchObject({ msh_9_1: 'ORU', msh_9_2: 'R01', msh_10: 'MSG00001', msh_12: '2.5.1' });
+    expect(payload.flat.segments[0]).toMatchObject({
+      segment: 'PID',
+      pid_3: [{ pid_3_1: '123456', pid_3_4_1: 'HOSP', pid_3_5: 'MR' }],
+      pid_5: [{ pid_5_1_1: 'DOE', pid_5_2: 'JANE', pid_5_3: 'A' }],
+    });
 
     const m = await waitFor(async () => {
       const d = (await http_().get(`/api/messages/${payload.id}`).expect(200)).body;

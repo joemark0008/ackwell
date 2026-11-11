@@ -17,7 +17,14 @@ export function sampleMessage(version: string): string {
   ].join('\n');
 }
 
-/** Paste HL7 (or the generic JSON) and send it through the channel; the result shows up in the message log. */
+/** A bare typed message (has msh_12) is wrapped as { flat }; anything else JSON goes as-is. */
+function asSendBody(v: unknown): SendRequestInput | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  if ('msh_12' in v && !('flat' in v)) return { flat: v } as SendRequestInput;
+  return v as SendRequestInput;
+}
+
+/** Paste HL7 (or JSON) and send it through the channel; the result shows up in the message log. */
 export function TestSendCard({ channel }: { channel: Channel }) {
   const [text, setText] = useState(() => sampleMessage(channel.hl7Version));
   const [last, setLast] = useState<MessageSummary | null>(null);
@@ -25,7 +32,7 @@ export function TestSendCard({ channel }: { channel: Channel }) {
   const running = channel.status === 'running';
 
   async function go() {
-    const body: SendRequestInput | null = text.trim().startsWith('{') ? (safeJson(text) as SendRequestInput | null) : { hl7: text };
+    const body = text.trim().startsWith('{') ? asSendBody(safeJson(text)) : { hl7: text };
     if (!body) {
       toast.error('That is not valid JSON.');
       return;
@@ -44,7 +51,8 @@ export function TestSendCard({ channel }: { channel: Channel }) {
       <CardHeader>
         <CardTitle>Test send</CardTitle>
         <CardDescription>
-          Paste an HL7 message (segments on separate lines) or the generic JSON. Empty MSH-7, MSH-10 and MSH-12 are filled
+          Paste an HL7 message (segments on separate lines), the typed JSON (msh_9_1, msh_12, segments…) or the
+          lossless JSON. Empty MSH-7, MSH-10 and MSH-12 are filled
           in. The ACK appears in the message log below.
         </CardDescription>
       </CardHeader>

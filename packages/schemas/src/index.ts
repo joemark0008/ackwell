@@ -1,5 +1,6 @@
 export * from './channel';
 export * from './hl7';
+export * from './hl7-flat';
 export * from './message';
 export * from './outbound';
 export * from './port-range';

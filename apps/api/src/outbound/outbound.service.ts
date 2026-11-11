@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import {
   buildHl7,
+  fromFlat,
   controlIdOf,
   messageTypeOf,
   parseHl7,
@@ -89,7 +90,7 @@ export class OutboundService implements OnApplicationBootstrap {
 
     let json: Hl7Json;
     try {
-      json = 'hl7' in input ? parseHl7(input.hl7) : input;
+      json = 'hl7' in input ? parseHl7(input.hl7) : 'flat' in input ? fromFlat(input.flat) : input;
       completeHeader(json, channel.hl7Version as Hl7Version);
     } catch (e) {
       throw new BadRequestException({ statusCode: 400, code: 'INVALID_HL7', message: (e as Error).message });

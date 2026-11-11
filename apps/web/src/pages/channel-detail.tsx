@@ -12,6 +12,7 @@ import { StartStopButton } from '@/components/start-stop-button';
 import { WebhookCard } from '@/components/webhook-card';
 import { ApiKeysCard } from '@/components/api-keys-card';
 import { TestSendCard } from '@/components/test-send-card';
+import { TypedJsonNote } from '@/components/typed-json-note';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -106,7 +107,9 @@ function ConnectionCard({ channel }: { channel: Channel }) {
             <Endpoint label="Send endpoint" value={sendUrl} />
             <p className="text-xs text-muted-foreground">
               Body: <span className="font-mono">{'{ "hl7": "MSH|…" }'}</span> (raw text) or the generic JSON{' '}
-              <span className="font-mono">{'{ "segments": [...] }'}</span>. Empty MSH-7, MSH-10 and MSH-12 are filled in.
+              <span className="font-mono">{'{ "segments": [...] }'}</span>, or the typed JSON{' '}
+              <span className="font-mono">{'{ "flat": { "msh_9_1": "ADT", "msh_12": "2.5.1", … } }'}</span> (HL7 2.3, 2.5.1,
+              2.7). Empty MSH-7, MSH-10 and MSH-12 are filled in.
               Authenticate with an API key from this page. Messages go out one at a time, in order.
             </p>
           </div>
@@ -131,6 +134,9 @@ function ConfigCard({ channel }: { channel: Channel }) {
         <dl className="divide-y">
           <Row label="HL7 version" mono>
             {channel.hl7Version}
+          </Row>
+          <Row label="Typed JSON">
+            <TypedJsonNote channel={channel} />
           </Row>
           <Row label="Retention">
             {channel.retentionDays} days
