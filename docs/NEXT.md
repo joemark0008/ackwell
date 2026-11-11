@@ -27,7 +27,7 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 - [x] Create `docs/HANDOVER.md` and `docs/NEXT.md`
 - [x] User approves the plan (2026-11-11: hot reload, `ackwell`, Coolify DB)
 - [x] MLLP ports: range 6100–6150 published on LAN IP 172.16.10.30 (approved 2026-11-11)
-- [x] User answers HANDOVER §4b (Git remote optional, still open)
+- [x] User answers HANDOVER §4b (Git remote done 2026-11-11: https://github.com/joemark0008/ackwell)
 - [x] Check in Coolify that `ackwell` is free (no other resource uses the subdomain)
 - [x] `git init` + `.gitignore` + `.env.example` (variables from PLAN → Environment variables)
 - [x] Dev hot-reload `docker-compose.yml`

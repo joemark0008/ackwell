@@ -36,7 +36,7 @@ Ackwell is a full-stack app for HL7 v2 channels. An **inbound channel** is an ML
 | Dev compose | `docker-compose.yml`: one `node:22-alpine` container running `turbo dev` (vite :5173 proxies `/api` + `/health` to nest :3000). MLLP ports **not** published yet. |
 | Coolify DB `ackwell-db` | uuid `zcukcdfdgfw5wveafh91vqwd`, Postgres 16, internal only, healthy. Daily backup 02:00, keep 14. |
 | Coolify service `ackwell` | uuid `d3tdtacn0nqgdnanacqwv1pt`, hot reload, predefined network on, URL `https://ackwell.joemarkgimeno.com:5173`, env `DATABASE_URL` + `BETTER_AUTH_SECRET` set in Coolify. Container `app-d3tdtacn0nqgdnanacqwv1pt` publishes `172.16.10.30:6100-6150`. **LIVE.** |
-| Git repo | `git init` on `main`, local commits only (no remote) |
+| Git repo | `main` pushed to **https://github.com/joemark0008/ackwell** (remote `origin`, SSH, 2026-11-11). The server pushes with its own SSH key (`~/.ssh/id_ed25519`, added to the GitHub account). Commit only when the user asks. |
 
 ### Phase 2 facts (done 2026-11-11 — see the report for details)
 - `node-hl7-server` 4.1.2: `createInbound` binds synchronously and emits `listen` / `error` (always attach `error`, or Node throws). `client.connect` fires before any data → allowlist rejects there. `data.raw` is emitted right before the handler with the exact frame. `Message.get('MSH.9')` returns only the first component, so the message type comes from our own codec.
@@ -86,7 +86,7 @@ New migration after a schema change: `cd apps/api && npx drizzle-kit generate --
 
 ## 4b. Open items for the user
 1. ~~Coolify admin action~~ — done 2026-11-11 with an admin token (DB + service created via API).
-2. **Git remote** (optional for dev; needed later for CI/auto-deploy of the production image).
+2. ~~Git remote~~ — done 2026-11-11: https://github.com/joemark0008/ackwell (see §3). CI/auto-deploy of the production image can use it later.
 
 ## 5. Environment notes
 - Node is **not** installed on the host. Run npm, drizzle-kit and tests in `node:22-alpine` containers.
