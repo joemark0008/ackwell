@@ -1,4 +1,12 @@
-import type { AppSettings, Channel, CreateChannelInput, UpdateChannel } from '@ackwell/schemas';
+import type {
+  AppSettings,
+  Channel,
+  CreateChannelInput,
+  MessageDetail,
+  MessageList,
+  MessageListQuery,
+  UpdateChannel,
+} from '@ackwell/schemas';
 
 export interface ApiErrorBody {
   statusCode?: number;
@@ -40,5 +48,19 @@ export const api = {
     create: (input: CreateChannelInput) => request<Channel>('POST', '/api/channels', input),
     update: (id: string, patch: UpdateChannel) => request<Channel>('PATCH', `/api/channels/${id}`, patch),
     remove: (id: string) => request<void>('DELETE', `/api/channels/${id}`),
+    start: (id: string) => request<Channel>('POST', `/api/channels/${id}/start`),
+    stop: (id: string) => request<Channel>('POST', `/api/channels/${id}/stop`),
+    messages: (id: string, query: Partial<MessageListQuery> = {}) =>
+      request<MessageList>('GET', `/api/channels/${id}/messages${toQuery(query)}`),
+  },
+  messages: {
+    get: (id: string) => request<MessageDetail>('GET', `/api/messages/${id}`),
   },
 };
+
+function toQuery(params: Record<string, string | number | undefined>): string {
+  const sp = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== '') sp.set(k, String(v));
+  const s = sp.toString();
+  return s ? `?${s}` : '';
+}

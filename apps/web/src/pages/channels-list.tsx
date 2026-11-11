@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { DirectionBadge, StatusBadge } from '@/components/badges';
 import { DeleteChannelDialog } from '@/components/delete-channel-dialog';
+import { StartStopMenuItem } from '@/components/start-stop-button';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import {
@@ -124,6 +125,7 @@ function RowActions({ channel }: { channel: Channel }) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+          <StartStopMenuItem channel={channel} />
           <DropdownMenuItem onSelect={() => navigate(`/channels/${channel.id}/edit`)}>
             <Pencil /> Edit
           </DropdownMenuItem>

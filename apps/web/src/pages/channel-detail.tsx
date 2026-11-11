@@ -1,12 +1,14 @@
 import type { Channel } from '@ackwell/schemas';
-import { ArrowLeft, Inbox, MoreHorizontal, Pencil, Play, Trash2 } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { DirectionBadge, StatusBadge } from '@/components/badges';
 import { CopyButton } from '@/components/copy-button';
 import { DeleteChannelDialog } from '@/components/delete-channel-dialog';
 import { Flow, inboundFlow, outboundFlow } from '@/components/flow';
+import { MessagesCard } from '@/components/messages-card';
 import { PageHeader } from '@/components/page-header';
+import { StartStopButton } from '@/components/start-stop-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -16,7 +18,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ApiError } from '@/lib/api';
 import { fmtNum, formatDateTime } from '@/lib/format';
 import { useChannel, useSettings } from '@/lib/queries';
@@ -157,28 +158,6 @@ function ConfigCard({ channel }: { channel: Channel }) {
   );
 }
 
-function MessagesCard() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Messages</CardTitle>
-        <CardDescription>Raw HL7, parsed JSON, ACK and delivery attempts for every message.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-col items-center rounded-lg border border-dashed px-6 py-10 text-center">
-          <span className="grid size-10 place-items-center rounded-full bg-muted">
-            <Inbox className="size-5 text-muted-foreground" />
-          </span>
-          <p className="mt-3 text-sm font-medium">No messages yet</p>
-          <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-            The live message log appears here once the channel can be started.
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 export function ChannelDetailPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
@@ -222,16 +201,7 @@ export function ChannelDetailPage() {
         }
         actions={
           <>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span tabIndex={0}>
-                  <Button disabled>
-                    <Play /> Start
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>Starting channels arrives with the MLLP listeners (next release).</TooltipContent>
-            </Tooltip>
+            <StartStopButton channel={channel} />
             <Button variant="outline" onClick={() => navigate(`/channels/${channel.id}/edit`)}>
               <Pencil /> Edit
             </Button>
@@ -254,7 +224,7 @@ export function ChannelDetailPage() {
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0 space-y-6">
           <ConnectionCard channel={channel} />
-          <MessagesCard />
+          <MessagesCard channel={channel} />
         </div>
         <div className="space-y-6">
           <ConfigCard channel={channel} />

@@ -4,7 +4,7 @@ Read this first when you pick up the project (new session, new agent, or a new p
 It describes **where things stand right now**. Update it at the end of every work session.
 
 **Last updated:** 2026-11-11 · **By:** main session
-**Current phase:** Plan **APPROVED** 2026-11-11. Phase 1 (core) **done and LIVE on dev** (hot reload). Phase 1b (login) **done and live**. **Now: Phase 2 (inbound listeners).**
+**Current phase:** Plan **APPROVED** 2026-11-11. Phase 1 (core), 1b (login) and **Phase 2 (inbound listeners) done and LIVE on dev**. **Next: Phase 3 (outbound) or Phase 5 (webhook delivery) — see NEXT.md.**
 **Live (dev):** https://ackwell.joemarkgimeno.com (`curl -I` 200, `/health` ok, `/api/docs` 200). MLLP: `172.16.10.30:6100-6150` (LAN only).
 
 ---
@@ -28,19 +28,22 @@ Ackwell is a full-stack app for HL7 v2 channels. An **inbound channel** is an ML
 | Plan (`docs/PLAN.md`) | **APPROVED** 2026-11-11 |
 | `.claude` agents | Done: backend-dev, frontend-dev, qa-engineer |
 | Monorepo | Done: npm workspaces + Turborepo (`apps/api`, `apps/web`, `packages/schemas`), Node 22, TypeScript 5.9 |
-| Shared schemas (`packages/schemas`) | Zod 4 channel schemas (inbound/outbound config, webhook delivery, create/update/response) + port-range helper; built with tsup (ESM + CJS) |
-| Backend (`apps/api`) | **Phase 1 done:** NestJS 12 (**ESM-only** → relative imports need `.js`), Zod-validated env, nestjs-pino, Swagger at `/api/docs`, `GET /health` (no `/api` prefix), Drizzle schema + migration `0000_init` (channels, messages, delivery_attempts, api_keys), migrations on startup (retries while the DB starts), channel CRUD `/api/channels` |
+| Shared schemas (`packages/schemas`) | Zod 4 channel schemas (inbound/outbound config, webhook delivery, create/update/response) + port-range helper; **lossless HL7 ↔ JSON codec** (`hl7.ts`: `parseHl7` / `buildHl7`, browser-safe) + message schemas (`message.ts`); built with tsup (ESM + CJS) |
+| Backend (`apps/api`) | **Phase 1 done:** NestJS 12 (**ESM-only** → relative imports need `.js`), Zod-validated env, nestjs-pino, Swagger at `/api/docs`, `GET /health` (no `/api` prefix), Drizzle schema + migration `0000_init` (channels, messages, delivery_attempts, api_keys), migrations on startup (retries while the DB starts), channel CRUD `/api/channels`. **Phase 2 done:** `ChannelManager` (MLLP listener per inbound channel via `node-hl7-server`, persist → ACK, allowlist, boot restore, shutdown close), `POST /api/channels/:id/start|stop`, `GET /api/channels/:id/messages` (keyset paging, filters), `GET /api/messages/:id`. Migration `0002_message_remote_address`. Report: `docs/reports/2026-11-11-backend-phase2-inbound.md` |
 | Auth | Better Auth 1.7: email + password, sign-up disabled, global session guard (`@Public()` opt-out), first-run admin seed. Migration `0001_auth`. |
-| Frontend (`apps/web`) | **Designed UI live:** shadcn/ui (radix-nova) + Tailwind 4 + React Router 8 + TanStack Query + RHF. Login, app shell (sidebar, status, theme), channels list, create/edit form (shared Zod schema), channel detail. Start/stop + messages are placeholders until Phase 2. Web tests 8/8. |
-| Tests | schemas 7/7, API e2e (Vitest + Testcontainers Postgres) 12/12, typecheck clean, `nest build` + `vite build` OK |
+| Frontend (`apps/web`) | **Designed UI live:** shadcn/ui (radix-nova) + Tailwind 4 + React Router 8 + TanStack Query + RHF. Login, app shell (sidebar, status, theme), channels list, create/edit form (shared Zod schema), channel detail. **Phase 2:** Start/Stop (detail + list menu), message log card (search, status filter, cursor paging, 4 s polling while running), message dialog (raw HL7 beside JSON; `<pre>` panes, Monaco later). Web tests 10/10. |
+| Tests | schemas 21/21, API e2e (Vitest + Testcontainers Postgres) 27/27 incl. 8 MLLP listener tests on ports 6040-6050, web 10/10, typecheck clean, `vite build` OK |
 | Dev compose | `docker-compose.yml`: one `node:22-alpine` container running `turbo dev` (vite :5173 proxies `/api` + `/health` to nest :3000). MLLP ports **not** published yet. |
 | Coolify DB `ackwell-db` | uuid `zcukcdfdgfw5wveafh91vqwd`, Postgres 16, internal only, healthy. Daily backup 02:00, keep 14. |
 | Coolify service `ackwell` | uuid `d3tdtacn0nqgdnanacqwv1pt`, hot reload, predefined network on, URL `https://ackwell.joemarkgimeno.com:5173`, env `DATABASE_URL` + `BETTER_AUTH_SECRET` set in Coolify. Container `app-d3tdtacn0nqgdnanacqwv1pt` publishes `172.16.10.30:6100-6150`. **LIVE.** |
 | Git repo | `git init` on `main`, local commits only (no remote) |
 
-### Phase 2 notes (in progress, pick up here)
-- Installed `node-hl7-server` + `node-hl7-client` 4.1.2 (ESM+CJS, Node ≥ 22). `server.createInbound({ port, version }, async (req, res) => …)`; the handler is async, so **save to Postgres, then `await res.sendResponse('AA')`** (send `AR` if the save fails). `req.getSocket().remoteAddress` gives the sender IP for the allowlist (use `net.BlockList` for CIDRs). `new Server({ bindAddress: '0.0.0.0', tls? })`.
-- Planned design: own lossless HL7↔JSON converter (`{ delimiters, segments: [{ id, fields }] }`, MSH-1/2 raw, field = string | components[] | `{ repeat: [...] }`, leaves keep HL7 escapes); `POST /api/channels/:id/start|stop`; restore running channels on boot; `GET /api/channels/:id/messages` + `GET /api/messages/:id`; wire the UI Start/Stop + Messages panel (poll until SSE); tests on a random port range with a raw MLLP client.
+### Phase 2 facts (done 2026-11-11 — see the report for details)
+- `node-hl7-server` 4.1.2: `createInbound` binds synchronously and emits `listen` / `error` (always attach `error`, or Node throws). `client.connect` fires before any data → allowlist rejects there. `data.raw` is emitted right before the handler with the exact frame. `Message.get('MSH.9')` returns only the first component, so the message type comes from our own codec.
+- Listeners accept **any HL7 version** (`acceptAnyVersion`) so mismatched senders are logged, not silently AR'd.
+- Persist-before-ACK: `MessagesService.recordInbound` inserts, then the listener sends the ACK code it returned (`AA`; `AE` if unparseable but stored; `AR` if the insert failed).
+- Inbound messages stay `received` until the Phase 5 delivery adapter exists (no pg-boss yet).
+- Live sample: channel `Lab results in` (`661a50b5…`) is **running on 6100**; a smoke message `LIVE0001` from `172.16.10.30` is in its log. Smoke sender: a 20-line Python MLLP client (see session log).
 
 ### How to run tests (Node is not on the host)
 ```
@@ -76,6 +79,7 @@ New migration after a schema change: `cd apps/api && npx drizzle-kit generate --
 - shadcn CLI quirk: `shadcn add` writes `import { cn } from "cn"` (an unrelated npm package). After adding a component, change it to `@/lib/utils`.
 - Visual check: Playwright image `mcr.microsoft.com/playwright:v1.49.1-jammy` against the live URL (see session log 2026-11-11).
 - Turbo 2 runs in strict env mode: any new env var the app reads must be added to `globalPassThroughEnv` in `turbo.json`, or it is invisible to the API.
+- **Dev container `node_modules` is a named volume**, separate from the host's `node_modules`. After adding a dependency, run `docker exec app-d3tdtacn0nqgdnanacqwv1pt npm install` (or restart the service) — an `npm install` from an outside `docker run` only fills the host copy. Running `tsup --clean` on `packages/schemas` from outside also leaves the in-container `nest --watch` with stale module resolution ("Could not find a declaration file for '@ackwell/schemas'") until the container restarts. Restart = Coolify dashboard → ackwell → Restart (or `POST /api/v1/services/<uuid>/restart` with the token; `docker restart app-…` was used on 2026-11-11 when no token was in the session).
 - The first API token was resource-scoped and cannot create resources on the Coolify host; the admin token can. Neither is stored anywhere.
 - Coolify project `dev-projects` (`t420hkorkdrbme5qjhltlq7m`), env `development` (`he4jwsjxdfhrgx8otyzubmov`). Resource name: `ackwell`.
 - Hot-reload reference setup: `/root/project/react-test/`. Full multi-agent reference project: `/root/project/acemc-que/`.
@@ -102,3 +106,4 @@ New migration after a schema change: `cd apps/api && npx drizzle-kit generate --
 | 2026-11-11 | main session | Phase 1b: Better Auth (guard, admin seed, login page). Tests 19/19. Seed env added in Coolify (password only there), service restarted, user confirmed login on the live site. |
 | 2026-11-11 | main session | UI designed and built (shadcn shell, channels list/form/detail, login), `GET /api/settings` (MLLP host + range). Playwright visual pass on live (desktop, mobile 390 px, dark); fixed mobile table clipping + outbound code block. Two sample channels created on dev (`Lab results in`, `Orders to LIS`). |
 | 2026-11-11 | main session | Phase 2 started: HL7 libraries installed and their API checked (notes in §3). Stopped at the usage limit before writing Phase 2 code. |
+| 2026-11-11 | main session | **Phase 2 built, tested and live.** HL7↔JSON codec + message schemas (schemas 21/21), `ChannelManager` + listener + messages API (API 27/27), UI Start/Stop + message log + dialog (web 10/10). Dev container needed an in-container `npm install` + restart (node_modules volume). Live smoke: started `Lab results in` on 6100, MLLP from `172.16.10.30` → `MSA|AA|LIVE0001`, message visible in API + UI. Playwright pass on detail/dialog/list (desktop, mobile, dark). Report `docs/reports/2026-11-11-backend-phase2-inbound.md`. |

@@ -3,7 +3,7 @@
 Status keys: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 Update this file whenever a task changes state. Each line gives its owner, and links to its report in `docs/reports/` once done.
 
-**Now:** Plan approved 2026-11-11. Phase 1 (core) **done locally** (tests green). **LIVE** on dev at https://ackwell.joemarkgimeno.com (hot reload) with login (Phase 1b done). **Now: Phase 2 (inbound listeners).**
+**Now:** Phases 1, 1b and **2 (inbound listeners) done and LIVE** at https://ackwell.joemarkgimeno.com. **Next: Phase 3 (outbound send + worker) — then Phase 5 (webhook delivery) so inbound messages leave `received`.**
 
 ---
 
@@ -12,7 +12,10 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 2. `[x]` Env vars set, deployed, verified: `curl -I` 200, `/health` ok, live CRUD smoke test.
 3. `[x]` **backend-dev + frontend-dev:** Phase 1b — auth (Better Auth) so the public dev site is not open before listeners exist.
 4. `[x]` **User:** MLLP host-port exception approved; senders use LAN IP `172.16.10.30`, range 6100–6150.
-5. `[~]` **backend-dev:** Phase 2 — inbound listeners (started 2026-11-11: `node-hl7-server`/`node-hl7-client` 4.1.2 installed in `apps/api`; API checked — see HANDOVER §3 'Phase 2 notes'). Nothing else built yet.
+5. `[x]` **backend-dev:** Phase 2 — inbound listeners, message log API, UI wiring (2026-11-11, [report](reports/2026-11-11-backend-phase2-inbound.md)).
+6. `[ ]` **backend-dev:** Phase 3 — outbound: pg-boss setup, `POST /channels/:id/send` (API key), per-channel worker with `node-hl7-client`, ACK tracking + retries.
+7. `[ ]` **backend-dev:** Phase 5 — `DeliveryAdapter` + signed webhook so inbound messages are delivered.
+8. `[ ]` **frontend-dev:** SSE live feed (replace 4 s polling), Monaco in the message dialog, test-send box, resend.
 
 ---
 
@@ -48,12 +51,14 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 - [x] Tests: 401 without a session, wrong password 401, sign-up disabled, untrusted origin 403, login → API → logout → 401, seed runs once (API 19/19)
 - [x] Live: sign-in, session, channels 200 / 401 without cookie, sign-out — verified 2026-11-11; user logged in
 
-## Phase 2 — Inbound (owner: backend-dev)
-- [ ] Channel manager: start/stop/restart MLLP listeners at runtime; restore running channels on boot
-- [ ] Pipeline: save raw HL7 → ACK → parse to lossless JSON → enqueue delivery
-- [ ] Generic HL7 ↔ JSON converter (segments → fields → components, escapes, repeats)
-- [ ] Round-trip tests on real HL7 samples
-- [ ] Report → lead review
+## Phase 2 — Inbound (owner: backend-dev) — DONE 2026-11-11
+- [x] Channel manager: start/stop MLLP listeners at runtime (`POST /api/channels/:id/start|stop`); restore running channels on boot; close on shutdown
+- [x] Pipeline: save raw HL7 (+ JSON, type, control id, sender IP) → ACK (AA / AE / AR). Enqueue delivery → Phase 5 (no pg-boss yet; messages stay `received`)
+- [x] Generic lossless HL7 ↔ JSON codec in `packages/schemas/src/hl7.ts` (segments → fields → repeats → components → subcomponents, escapes kept, custom delimiters)
+- [x] Round-trip tests on HL7 samples (schemas 14 tests) + MLLP e2e (API 8 tests with a raw MLLP client)
+- [x] Message log API: `GET /api/channels/:id/messages` (cursor paging, status/q filters, total), `GET /api/messages/:id`
+- [x] IP allowlist enforced on connect (brought forward from Hardening)
+- [x] Report → [reports/2026-11-11-backend-phase2-inbound.md](reports/2026-11-11-backend-phase2-inbound.md)
 
 ## Phase 3 — Outbound (owner: backend-dev)
 - [ ] `POST /channels/:id/send` (Zod-validated JSON, enqueue)
@@ -69,11 +74,11 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 - [x] Channels list (stats, direction tabs, search, table; card list on phones; empty state with inbound/outbound starters)
 - [x] Create/edit forms (RHF + shared `createChannelSchema` resolver, server 400/409 mapped to fields, next-free-port suggestion, live "How it flows" preview, running-channel lock)
 - [x] Channel detail (connection card with copyable MLLP address / send endpoint + curl, flow diagram, configuration, delete with confirm)
-- [ ] Start/stop buttons wired (disabled with a tooltip until Phase 2)
-- [ ] Message log (TanStack Table, filters, server paging, live via SSE)
-- [ ] Message detail: Monaco HL7/JSON side by side, ACK, attempts, resend
+- [x] Start/stop wired (detail page button + list row menu, toasts, `PORT_UNAVAILABLE` / `CHANNEL_BUSY` messages)
+- [x] Message log card (search by type / control id, status filter, cursor paging "Load older", 4 s polling while running) — SSE still `[ ]`
+- [~] Message detail dialog: raw HL7 beside JSON (`<pre>` panes; Monaco `[ ]`), ACK, sender, attempts; resend `[ ]`
 - [ ] Test-send box
-- [x] Component tests (Vitest + Testing Library): form mapping 6, channels page 2
+- [x] Component tests (Vitest + Testing Library): form mapping 6, channels page 2, messages card 2
 - [ ] Report → lead review
 
 ## Phase 5 — Delivery (owner: backend-dev)
@@ -90,7 +95,7 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 
 ## Phase 7 — Hardening (owner: backend-dev + frontend-dev)
 - [ ] Per-channel API keys (hashed, label, last used, revoke) + UI
-- [ ] IP allowlist on MLLP connect
+- [x] IP allowlist on MLLP connect (done in Phase 2)
 - [ ] TLS for inbound listeners and outbound connections
 - [ ] Metrics (prom-client): messages/min, ACK failures, queue depth
 - [ ] SSE for channel status + live feed (if not done in Phase 4)
@@ -125,3 +130,4 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 | 2026-11-11 | Coolify `ackwell-db` + hot-reload service deployed; live at https://ackwell.joemarkgimeno.com | main session | — |
 | 2026-11-11 | Phase 1b: Better Auth login (API guard, admin seed, login page), live and verified | main session | — |
 | 2026-11-11 | UI design: shadcn shell, channels list/form/detail, `/api/settings`; web tests 8/8, API 19/19; Playwright visual check desktop/mobile/dark on live | main session | — |
+| 2026-11-11 | Phase 2: HL7↔JSON codec, channel manager + MLLP listeners, messages API, UI start/stop + message log + dialog; schemas 21/21, API 27/27, web 10/10; live MLLP smoke on 172.16.10.30:6100 | main session | [report](reports/2026-11-11-backend-phase2-inbound.md) |

@@ -11,8 +11,11 @@ export interface TestContext {
 }
 
 /** Starts a throwaway Postgres, runs migrations and boots the full AppModule. */
-export async function startApp(env: Record<string, string> = {}): Promise<TestContext> {
-  const pg = await new PostgreSqlContainer('postgres:16-alpine').start();
+export async function startApp(
+  env: Record<string, string> = {},
+  opts: { pg?: StartedPostgreSqlContainer } = {},
+): Promise<TestContext> {
+  const pg = opts.pg ?? (await new PostgreSqlContainer('postgres:16-alpine').start());
   Object.assign(process.env, {
     NODE_ENV: 'test',
     LOG_LEVEL: 'silent',
@@ -36,9 +39,9 @@ export async function startApp(env: Record<string, string> = {}): Promise<TestCo
   return { app, pg };
 }
 
-export async function stopApp(ctx: TestContext | undefined): Promise<void> {
+export async function stopApp(ctx: TestContext | undefined, opts: { keepDb?: boolean } = {}): Promise<void> {
   await ctx?.app.close();
-  await ctx?.pg.stop();
+  if (!opts.keepDb) await ctx?.pg.stop();
 }
 
 /** Signs in as the seeded admin and returns the session cookie header. */

@@ -70,6 +70,8 @@ export const messages = pgTable(
     status: messageStatus('status').notNull(),
     ackCode: text('ack_code'),
     error: text('error'),
+    /** Sender IP for inbound messages. */
+    remoteAddress: text('remote_address'),
     ...timestamps,
   },
   (t) => [
@@ -112,6 +114,8 @@ export const apiKeys = pgTable(
 
 export type ChannelRow = typeof channels.$inferSelect;
 export type NewChannelRow = typeof channels.$inferInsert;
+export type MessageRow = typeof messages.$inferSelect;
+export type DeliveryAttemptRow = typeof deliveryAttempts.$inferSelect;
 
 // ---- Better Auth tables (see auth-schema.ts) ----
 export * from './auth-schema.js';

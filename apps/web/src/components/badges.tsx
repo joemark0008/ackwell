@@ -1,4 +1,4 @@
-import type { ChannelDirection, ChannelStatus } from '@ackwell/schemas';
+import type { ChannelDirection, ChannelStatus, MessageStatus } from '@ackwell/schemas';
 import { ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -34,5 +34,33 @@ export function StatusBadge({ status, className }: { status: ChannelStatus; clas
       <span className={cn('size-2 rounded-full', s.dot)} aria-hidden />
       {s.label}
     </span>
+  );
+}
+
+const messageStatusStyle: Record<MessageStatus, { label: string; cls: string }> = {
+  received: { label: 'Received', cls: 'border-inbound/25 bg-inbound/8 text-inbound' },
+  queued: { label: 'Queued', cls: 'border-border bg-muted text-muted-foreground' },
+  processing: { label: 'Processing', cls: 'border-warning/30 bg-warning/10 text-warning' },
+  delivered: { label: 'Delivered', cls: 'border-success/30 bg-success/10 text-success' },
+  sent: { label: 'Sent', cls: 'border-success/30 bg-success/10 text-success' },
+  rejected: { label: 'Rejected', cls: 'border-destructive/30 bg-destructive/10 text-destructive' },
+  failed: { label: 'Failed', cls: 'border-destructive/30 bg-destructive/10 text-destructive' },
+};
+
+export function MessageStatusBadge({ status, className }: { status: MessageStatus; className?: string }) {
+  const s = messageStatusStyle[status];
+  return (
+    <span className={cn('inline-flex h-5 items-center rounded-md border px-1.5 text-[11px] font-medium', s.cls, className)}>
+      {s.label}
+    </span>
+  );
+}
+
+/** AA / AE / AR … coloured by meaning. */
+export function AckBadge({ code }: { code: string | null }) {
+  if (!code) return <span className="text-muted-foreground">—</span>;
+  const ok = code === 'AA' || code === 'CA';
+  return (
+    <span className={cn('font-mono text-xs font-semibold', ok ? 'text-success' : 'text-destructive')}>{code}</span>
   );
 }

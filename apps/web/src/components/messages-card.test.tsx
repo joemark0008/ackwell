@@ -1,0 +1,94 @@
+import type { Channel, MessageDetail, MessageList } from '@ackwell/schemas';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { MessagesCard } from './messages-card';
+
+const channel: Channel = {
+  id: '11111111-1111-4111-8111-111111111111',
+  name: 'Lab in',
+  direction: 'inbound',
+  status: 'running',
+  hl7Version: '2.5.1',
+  retentionDays: 7,
+  config: { port: 6100, tls: { enabled: false }, allowlist: [] },
+  delivery: { type: 'webhook', url: 'https://x.test', timeoutMs: 10000, maxAttempts: 10 },
+  createdAt: '2026-11-11T00:00:00Z',
+  updatedAt: '2026-11-11T00:00:00Z',
+};
+
+const RAW = 'MSH|^~\\&|LAB|HOSP|ACKWELL|HOSP|20261111120000||ORU^R01|MSG00001|P|2.5.1\rPID|1||123^^^HOSP^MR||DOE^JANE';
+
+const detail: MessageDetail = {
+  id: '22222222-2222-4222-8222-222222222222',
+  channelId: channel.id,
+  direction: 'inbound',
+  status: 'received',
+  messageType: 'ORU^R01',
+  controlId: 'MSG00001',
+  ackCode: 'AA',
+  error: null,
+  remoteAddress: '172.16.10.5',
+  createdAt: '2026-11-11T12:00:00Z',
+  updatedAt: '2026-11-11T12:00:00Z',
+  raw: RAW,
+  json: {
+    delimiters: { field: '|', component: '^', repeat: '~', escape: '\\', subcomponent: '&' },
+    segments: [{ id: 'MSH', fields: ['|', '^~\\&', 'LAB'] }],
+  },
+  attempts: [],
+};
+
+function mockApi(list: MessageList) {
+  const fetchMock = vi.fn(async (url: string) => {
+    const body = url.startsWith(`/api/channels/${channel.id}/messages`) ? list : url.startsWith('/api/messages/') ? detail : {};
+    return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+}
+
+function renderCard() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <TooltipProvider>
+        <MessagesCard channel={channel} />
+      </TooltipProvider>
+    </QueryClientProvider>,
+  );
+}
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe('MessagesCard', () => {
+  it('shows the running empty state', async () => {
+    mockApi({ items: [], nextCursor: null, total: 0 });
+    renderCard();
+    expect(await screen.findByText('No messages yet')).toBeInTheDocument();
+    expect(screen.getByText(/channel is listening/)).toBeInTheDocument();
+    expect(screen.getByText('Live')).toBeInTheDocument();
+  });
+
+  it('lists messages and opens the raw/JSON dialog on click', async () => {
+    const { raw: _r, json: _j, attempts: _a, ...summary } = detail;
+    const fetchMock = mockApi({ items: [summary], nextCursor: 'abc', total: 51 });
+    renderCard();
+    const table = within(await screen.findByRole('table'));
+    expect(table.getByText('ORU^R01')).toBeInTheDocument();
+    expect(table.getByText('MSG00001')).toBeInTheDocument();
+    expect(table.getByText('AA')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Load older messages' })).toBeInTheDocument();
+    expect(fetchMock.mock.calls[0]![0]).toBe(`/api/channels/${channel.id}/messages?limit=50`);
+
+    await userEvent.setup().click(table.getByText('ORU^R01'));
+    const dialog = within(await screen.findByRole('dialog'));
+    expect(dialog.getByText('ORU^R01 · MSG00001')).toBeInTheDocument();
+    const raw = dialog.getAllByText((_, el) => el?.tagName === 'PRE' && (el.textContent ?? '').startsWith('MSH|^~\\&|LAB'));
+    expect(raw.length).toBeGreaterThan(0);
+    expect(raw[0]!.textContent).toContain('\nPID|1||123^^^HOSP^MR||DOE^JANE');
+    expect(dialog.getByText('172.16.10.5')).toBeInTheDocument();
+  });
+});

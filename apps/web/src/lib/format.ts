@@ -12,3 +12,10 @@ export function formatDateTime(iso: string): string {
 }
 
 export const fmtNum = (n: number | undefined) => (n === undefined ? '—' : new Intl.NumberFormat().format(n));
+
+/** Time with seconds for the message log; adds the date when it is not today. */
+export function formatLogTime(iso: string): string {
+  const d = new Date(iso);
+  const today = new Date().toDateString() === d.toDateString();
+  return new Intl.DateTimeFormat(undefined, today ? { timeStyle: 'medium' } : { dateStyle: 'short', timeStyle: 'medium' }).format(d);
+}
