@@ -9,7 +9,7 @@ const envSchema = z.object({
   BETTER_AUTH_SECRET: z.string().optional(),
   MLLP_PORT_RANGE: z
     .string()
-    .default('6000-6050')
+    .default('6100-6150')
     .transform((v, ctx): PortRange => {
       try {
         return parsePortRange(v);

@@ -11,7 +11,7 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 1. `[!]` **User:** create Coolify `ackwell-db` + service `ackwell` (or provide an admin token) — HANDOVER §4b-1.
 2. `[ ]` **lead:** set env vars, deploy the hot-reload service, verify `curl -I https://ackwell.joemarkgimeno.com` + `/health`.
 3. `[ ]` **backend-dev + frontend-dev:** Phase 1b — auth (Better Auth) so the public dev site is not open before listeners exist.
-4. `[ ]` **User:** decide on MLLP host-port exception + how senders reach the server (HANDOVER §4b-2/3) — needed before Phase 2 can be tested from outside the container.
+4. `[x]` **User:** MLLP host-port exception approved; senders use LAN IP `172.16.10.30`, range 6100–6150.
 5. `[ ]` **backend-dev:** Phase 2 — inbound listeners.
 
 ---
@@ -21,7 +21,8 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 - [x] Create agents: backend-dev, frontend-dev, qa-engineer
 - [x] Create `docs/HANDOVER.md` and `docs/NEXT.md`
 - [x] User approves the plan (2026-11-11: hot reload, `ackwell`, Coolify DB)
-- [~] User answers HANDOVER §4b (Coolify admin action, MLLP ports, sender access still open)
+- [x] MLLP ports: range 6100–6150 published on LAN IP 172.16.10.30 (approved 2026-11-11)
+- [~] User answers HANDOVER §4b (Coolify admin action still open)
 - [x] Check in Coolify that `ackwell` is free (no other resource uses the subdomain)
 - [x] `git init` + `.gitignore` + `.env.example` (variables from PLAN → Environment variables)
 - [x] Dev hot-reload `docker-compose.yml`
@@ -100,7 +101,7 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 - [ ] `docker-compose.yml` (app + optional postgres), `.env.example`
 - [ ] Coolify: Postgres `ackwell-db` (+ scheduled backups) in `dev-projects`
 - [ ] Coolify: resource `ackwell` in `dev-projects` / `development`, domain `https://ackwell.joemarkgimeno.com`, env vars in Coolify
-- [ ] MLLP port range exposure as agreed in HANDOVER §4b-1 (+ LAN-only firewall rule)
+- [ ] MLLP port range 6100–6150 on 172.16.10.30 in the prod compose too (dev compose done)
 - [ ] `curl -I https://ackwell.joemarkgimeno.com` → app (not 404/502); send a test HL7 message to a live listener
 - [ ] Report the URL to the user
 - [ ] Helm chart only if Kubernetes is needed

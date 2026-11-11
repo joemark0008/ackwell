@@ -6,8 +6,10 @@
 # DB = Coolify standalone Postgres "ackwell-db" on the "coolify" network
 # (enable "Connect to Predefined Network" on this service).
 #
-# MLLP: listeners arrive in Phase 2. The 6000-6050 range is NOT published yet; publishing it
-# needs the user's explicit OK (server rule exception, see docs/HANDOVER.md §4b).
+# MLLP (raw TCP, cannot go through Traefik/Cloudflare): the range 6100-6150 is published on the
+# machine's LAN IP only. This host-port mapping is an exception to /root/project/CLAUDE.md §2,
+# approved by the user on 2026-11-11 for this project. (6000-6050 clashes with Coolify's own 6001-6002.)
+# HL7 senders connect to 172.16.10.30:<channel port>.
 services:
   app:
     image: node:22-alpine
@@ -21,7 +23,7 @@ services:
       - APP_URL=https://ackwell.joemarkgimeno.com
       - PUBLIC_HOST=ackwell.joemarkgimeno.com
       - API_PROXY_TARGET=http://localhost:3000
-      - MLLP_PORT_RANGE=6000-6050
+      - MLLP_PORT_RANGE=6100-6150
       - RETENTION_DEFAULT_DAYS=7
       - LOG_LEVEL=info
       - TURBO_TELEMETRY_DISABLED=1
@@ -32,6 +34,8 @@ services:
     expose:
       - "5173"
       - "3000"
+    ports:
+      - "${MLLP_BIND_IP:-172.16.10.30}:6100-6150:6100-6150"
     restart: unless-stopped
 
 volumes:

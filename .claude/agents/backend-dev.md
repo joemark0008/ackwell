@@ -19,7 +19,7 @@ Read `/root/project/CLAUDE.md`, `docs/PLAN.md`, `docs/HANDOVER.md` and `docs/NEX
 - Enqueue pg-boss jobs in the same transaction that saves the message where possible.
 - Outbound ordering: one pg-boss queue per channel, one job at a time. Document the queue policy you chose.
 - JSON format is generic and lossless (segments → fields → components). Every parser change needs a round-trip test on real HL7 samples.
-- MLLP listeners only bind to ports inside `MLLP_PORT_RANGE` (default 6000–6050); reject anything else with a validation error. Enforce the per-channel IP allowlist on connect.
+- MLLP listeners only bind to ports inside `MLLP_PORT_RANGE` (dev: 6100–6150 on LAN IP 172.16.10.30; 6000–6050 from PLAN clashes with Coolify on 6001–6002); reject anything else with a validation error. Enforce the per-channel IP allowlist on connect.
 - Inbound delivery goes through the `DeliveryAdapter` interface + registry. Do not hard-code webhook logic into the pipeline.
 - Webhooks are signed per Standard Webhooks (`webhook-id`, `webhook-timestamp`, `webhook-signature: v1,<base64 HMAC-SHA256>` over `{id}.{timestamp}.{body}`), support two active secrets during rotation. Secrets are shown once and never logged.
 - API keys and webhook secrets are stored hashed / never returned after creation. No secrets in logs, files or commits.
