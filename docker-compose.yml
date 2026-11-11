@@ -26,6 +26,7 @@ services:
       - PUBLIC_HOST=ackwell.joemarkgimeno.com
       - API_PROXY_TARGET=http://localhost:3000
       - MLLP_PORT_RANGE=6100-6150
+      - MLLP_ADVERTISED_HOST=${MLLP_BIND_IP:-172.16.10.30}
       - RETENTION_DEFAULT_DAYS=7
       - LOG_LEVEL=info
       - TURBO_TELEMETRY_DISABLED=1

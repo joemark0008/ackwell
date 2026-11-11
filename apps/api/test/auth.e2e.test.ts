@@ -17,6 +17,7 @@ describe('auth', () => {
     const r = await http().get('/api/channels').expect(401);
     expect(r.body.code).toBe('UNAUTHENTICATED');
     await http().post('/api/channels').send({}).expect(401);
+    await http().get('/api/settings').expect(401);
   });
 
   it('keeps /health public', async () => {
@@ -58,6 +59,8 @@ describe('auth', () => {
     expect(s.body.user.email).toBe(ADMIN.email);
 
     await http().get('/api/channels').set('Cookie', cookie).expect(200);
+    const settings = await http().get('/api/settings').set('Cookie', cookie).expect(200);
+    expect(settings.body).toEqual({ mllp: { host: 'localhost', portRange: { from: 6000, to: 6050 } }, retentionDefaultDays: 7 });
 
     await http().post('/api/auth/sign-out').set('Origin', TEST_ORIGIN).set('Cookie', cookie).send({}).expect(200);
     await http().get('/api/channels').set('Cookie', cookie).expect(401);

@@ -21,6 +21,8 @@ const envSchema = z.object({
         return z.NEVER;
       }
     }),
+  /** Host/IP shown to users as the MLLP address senders connect to (the published LAN IP). */
+  MLLP_ADVERTISED_HOST: z.string().default('localhost'),
   RETENTION_DEFAULT_DAYS: z.coerce.number().int().min(1).max(3650).default(7),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });

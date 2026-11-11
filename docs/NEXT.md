@@ -63,13 +63,17 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 - [ ] Report → lead review
 
 ## Phase 4 — UI (owner: frontend-dev)
-- [ ] Vite + React + TS, Tailwind + shadcn/ui, TanStack Query, router, Vite dev proxy
-- [ ] Login (Better Auth)
-- [ ] Channels list + create/edit forms (RHF + shared Zod) + start/stop
+- [x] Vite + React + TS, Tailwind 4 + shadcn/ui (radix-nova, Geist + Geist Mono bundled, no CDN), TanStack Query, React Router 8, Vite dev proxy
+- [x] Design: app shell (sidebar + mobile drawer, API/MLLP status, user menu, light/dark/system theme), teal brand + inbound/outbound/status tokens
+- [x] Login (Better Auth) — split brand/form layout
+- [x] Channels list (stats, direction tabs, search, table; card list on phones; empty state with inbound/outbound starters)
+- [x] Create/edit forms (RHF + shared `createChannelSchema` resolver, server 400/409 mapped to fields, next-free-port suggestion, live "How it flows" preview, running-channel lock)
+- [x] Channel detail (connection card with copyable MLLP address / send endpoint + curl, flow diagram, configuration, delete with confirm)
+- [ ] Start/stop buttons wired (disabled with a tooltip until Phase 2)
 - [ ] Message log (TanStack Table, filters, server paging, live via SSE)
 - [ ] Message detail: Monaco HL7/JSON side by side, ACK, attempts, resend
 - [ ] Test-send box
-- [ ] Component tests (Vitest)
+- [x] Component tests (Vitest + Testing Library): form mapping 6, channels page 2
 - [ ] Report → lead review
 
 ## Phase 5 — Delivery (owner: backend-dev)
@@ -120,3 +124,4 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 | 2026-11-11 | Plan approved; git init, monorepo, Phase 1 core (schemas, Drizzle, channel CRUD, health, Swagger), tests 19/19, dev compose | main session | — |
 | 2026-11-11 | Coolify `ackwell-db` + hot-reload service deployed; live at https://ackwell.joemarkgimeno.com | main session | — |
 | 2026-11-11 | Phase 1b: Better Auth login (API guard, admin seed, login page), live and verified | main session | — |
+| 2026-11-11 | UI design: shadcn shell, channels list/form/detail, `/api/settings`; web tests 8/8, API 19/19; Playwright visual check desktop/mobile/dark on live | main session | — |

@@ -5,6 +5,7 @@ import { ChannelsModule } from './channels/channels.module.js';
 import { ConfigModule } from './config/config.module.js';
 import { DbModule } from './db/db.module.js';
 import { HealthController } from './health/health.controller.js';
+import { SettingsController } from './settings/settings.controller.js';
 
 const pretty = process.env.NODE_ENV === 'development' && process.env.LOG_PRETTY !== 'false';
 
@@ -23,6 +24,6 @@ const pretty = process.env.NODE_ENV === 'development' && process.env.LOG_PRETTY 
     AuthModule,
     ChannelsModule,
   ],
-  controllers: [HealthController],
+  controllers: [HealthController, SettingsController],
 })
 export class AppModule {}
