@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
+import { AuthModule } from './auth/auth.module.js';
 import { ChannelsModule } from './channels/channels.module.js';
 import { ConfigModule } from './config/config.module.js';
 import { DbModule } from './db/db.module.js';
@@ -19,6 +20,7 @@ const pretty = process.env.NODE_ENV === 'development' && process.env.LOG_PRETTY 
       },
     }),
     DbModule,
+    AuthModule,
     ChannelsModule,
   ],
   controllers: [HealthController],

@@ -3,14 +3,14 @@
 Status keys: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 Update this file whenever a task changes state. Each line gives its owner, and links to its report in `docs/reports/` once done.
 
-**Now:** Plan approved 2026-11-11. Phase 1 (core) **done locally** (tests green). **LIVE** on dev at https://ackwell.joemarkgimeno.com (hot reload). **Up next: Phase 1b (login).**
+**Now:** Plan approved 2026-11-11. Phase 1 (core) **done locally** (tests green). **LIVE** on dev at https://ackwell.joemarkgimeno.com (hot reload) with login (Phase 1b done). **Now: Phase 2 (inbound listeners).**
 
 ---
 
 ## Up next (in order)
 1. `[x]` Coolify `ackwell-db` + service `ackwell` created (admin token).
 2. `[x]` Env vars set, deployed, verified: `curl -I` 200, `/health` ok, live CRUD smoke test.
-3. `[ ]` **backend-dev + frontend-dev:** Phase 1b — auth (Better Auth) so the public dev site is not open before listeners exist.
+3. `[x]` **backend-dev + frontend-dev:** Phase 1b — auth (Better Auth) so the public dev site is not open before listeners exist.
 4. `[x]` **User:** MLLP host-port exception approved; senders use LAN IP `172.16.10.30`, range 6100–6150.
 5. `[ ]` **backend-dev:** Phase 2 — inbound listeners.
 
@@ -41,10 +41,12 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 
 ## Phase 1b — Auth before listeners (owner: backend-dev + frontend-dev)
 > Brought forward from Hardening: the dev site is public, so the UI/API needs login before Phase 2 opens ports.
-- [ ] Better Auth in NestJS (email + password, sessions in Postgres), guard on all `/api/*` except `/health` and the future API-key send endpoint
-- [ ] First admin user from env (seed once)
-- [ ] Login page + auth guard in the web app
-- [ ] Tests: 401 without a session, login/logout
+- [x] Better Auth 1.7 in NestJS (email + password, public sign-up disabled, sessions in Postgres, 12 h), mounted at `/api/auth/*` before the JSON parser; global `SessionGuard` on all routes, `@Public()` opt-out (used by `/health`; the API-key send endpoint will use it too)
+- [x] Migration `0001_auth` (user, session, account, verification — generated with `@better-auth/cli`)
+- [x] First admin user from env `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` (only while the user table is empty)
+- [x] Login page + session gate + sign-out in the web app
+- [x] Tests: 401 without a session, wrong password 401, sign-up disabled, untrusted origin 403, login → API → logout → 401, seed runs once (API 19/19)
+- [x] Live: sign-in, session, channels 200 / 401 without cookie, sign-out — verified 2026-11-11; user logged in
 
 ## Phase 2 — Inbound (owner: backend-dev)
 - [ ] Channel manager: start/stop/restart MLLP listeners at runtime; restore running channels on boot
@@ -117,3 +119,4 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 | 2026-11-11 | `.claude/agents` (backend-dev, frontend-dev, qa-engineer), HANDOVER, NEXT | main session | — |
 | 2026-11-11 | Plan approved; git init, monorepo, Phase 1 core (schemas, Drizzle, channel CRUD, health, Swagger), tests 19/19, dev compose | main session | — |
 | 2026-11-11 | Coolify `ackwell-db` + hot-reload service deployed; live at https://ackwell.joemarkgimeno.com | main session | — |
+| 2026-11-11 | Phase 1b: Better Auth login (API guard, admin seed, login page), live and verified | main session | — |

@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
 import { loadEnv } from './config/env.js';
@@ -11,7 +12,7 @@ async function bootstrap() {
   // Migrations run before the app accepts traffic.
   await runMigrations(env.DATABASE_URL);
 
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true, bodyParser: false });
   app.useLogger(app.get(Logger));
   configureApp(app);
   await app.listen(env.PORT, '0.0.0.0');

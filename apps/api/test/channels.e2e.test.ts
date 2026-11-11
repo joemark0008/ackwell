@@ -1,9 +1,16 @@
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { startApp, stopApp, type TestContext } from './helpers.js';
+import { signIn, startApp, stopApp, type TestContext } from './helpers.js';
 
 let ctx: TestContext;
-const http = () => request(ctx.app.getHttpServer());
+let cookie: string;
+/** Authenticated agent: every request carries the admin session cookie. */
+const http = () => {
+  const server = ctx.app.getHttpServer();
+  const agent = request(server);
+  const wrap = (m: 'get' | 'post' | 'patch' | 'delete') => (url: string) => agent[m](url).set('Cookie', cookie);
+  return { get: wrap('get'), post: wrap('post'), patch: wrap('patch'), delete: wrap('delete') };
+};
 
 const inbound = (over: Record<string, unknown> = {}) => ({
   name: 'Lab in',
@@ -21,6 +28,7 @@ const outbound = (over: Record<string, unknown> = {}) => ({
 
 beforeAll(async () => {
   ctx = await startApp();
+  cookie = await signIn(ctx.app);
 });
 afterAll(async () => {
   await stopApp(ctx);

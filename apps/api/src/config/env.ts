@@ -6,7 +6,10 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   APP_URL: z.string().default('http://localhost:3000'),
-  BETTER_AUTH_SECRET: z.string().optional(),
+  BETTER_AUTH_SECRET: z.string().min(32, 'BETTER_AUTH_SECRET must be at least 32 characters'),
+  /** First-run admin (only used while the user table is empty). */
+  SEED_ADMIN_EMAIL: z.email().optional(),
+  SEED_ADMIN_PASSWORD: z.string().min(12, 'SEED_ADMIN_PASSWORD must be at least 12 characters').optional(),
   MLLP_PORT_RANGE: z
     .string()
     .default('6100-6150')

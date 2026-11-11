@@ -4,7 +4,7 @@ Read this first when you pick up the project (new session, new agent, or a new p
 It describes **where things stand right now**. Update it at the end of every work session.
 
 **Last updated:** 2026-11-11 · **By:** main session
-**Current phase:** Plan **APPROVED** 2026-11-11. Phase 1 (core) **done and LIVE on dev** (hot reload). **Next: Phase 1b (login)** before Phase 2 opens MLLP listeners.
+**Current phase:** Plan **APPROVED** 2026-11-11. Phase 1 (core) **done and LIVE on dev** (hot reload). Phase 1b (login) **done and live**. **Now: Phase 2 (inbound listeners).**
 **Live (dev):** https://ackwell.joemarkgimeno.com (`curl -I` 200, `/health` ok, `/api/docs` 200). MLLP: `172.16.10.30:6100-6150` (LAN only).
 
 ---
@@ -30,7 +30,8 @@ Ackwell is a full-stack app for HL7 v2 channels. An **inbound channel** is an ML
 | Monorepo | Done: npm workspaces + Turborepo (`apps/api`, `apps/web`, `packages/schemas`), Node 22, TypeScript 5.9 |
 | Shared schemas (`packages/schemas`) | Zod 4 channel schemas (inbound/outbound config, webhook delivery, create/update/response) + port-range helper; built with tsup (ESM + CJS) |
 | Backend (`apps/api`) | **Phase 1 done:** NestJS 12 (**ESM-only** → relative imports need `.js`), Zod-validated env, nestjs-pino, Swagger at `/api/docs`, `GET /health` (no `/api` prefix), Drizzle schema + migration `0000_init` (channels, messages, delivery_attempts, api_keys), migrations on startup (retries while the DB starts), channel CRUD `/api/channels` |
-| Frontend (`apps/web`) | Placeholder only (Vite 8 + React 19 + Tailwind 4 + TanStack Query): shows API health + channel list. Real UI = Phase 4. |
+| Auth | Better Auth 1.7: email + password, sign-up disabled, global session guard (`@Public()` opt-out), first-run admin seed. Migration `0001_auth`. |
+| Frontend (`apps/web`) | Login page + session gate + sign-out; otherwise placeholder only (Vite 8 + React 19 + Tailwind 4 + TanStack Query): shows API health + channel list. Real UI = Phase 4. |
 | Tests | schemas 7/7, API e2e (Vitest + Testcontainers Postgres) 12/12, typecheck clean, `nest build` + `vite build` OK |
 | Dev compose | `docker-compose.yml`: one `node:22-alpine` container running `turbo dev` (vite :5173 proxies `/api` + `/health` to nest :3000). MLLP ports **not** published yet. |
 | Coolify DB `ackwell-db` | uuid `zcukcdfdgfw5wveafh91vqwd`, Postgres 16, internal only, healthy. Daily backup 02:00, keep 14. |
@@ -74,10 +75,13 @@ New migration after a schema change: `cd apps/api && npx drizzle-kit generate --
 - Hot-reload reference setup: `/root/project/react-test/`. Full multi-agent reference project: `/root/project/acemc-que/`.
 - HL7 libraries: `node-hl7-client@latest`, `node-hl7-server@latest` (node-hl7 monorepo, Node 22+).
 
+## 5b. Access (dev)
+- Admin login: `admin@ackwell.local`. The password is env `SEED_ADMIN_PASSWORD` on the Coolify service `ackwell` (Dashboard → dev-projects → ackwell → Environment Variables). The seed runs only while no user exists; changing the env later does not change the password.
+
 ## 6. Known issues / risks
 - MLLP traffic bypasses the reverse proxy and Cloudflare: senders use `172.16.10.30:6100-6150`. The host firewall (ufw) is inactive; the machine only has a private IP, so the ports are reachable from the LAN (172.16.10.0/25 and routed internal networks) only, unless a router forwards them. If the LAN IP changes, update `MLLP_BIND_IP` or the container will fail to start — a DHCP reservation / static IP is recommended.
 - Raw HL7 (patient data) is stored unencrypted — acceptable only while the app stays on the LAN.
-- Dev site is on the public internet with **no auth yet**: the CRUD API is open. Auth (Better Auth) is scheduled before Phase 2 starts listeners (NEXT → Phase 1b).
+- The dev UI/API is on the public internet behind login. `/api/docs` (Swagger page) is public but every API call needs a session. Cookie-authenticated API routes rely on `SameSite=Lax` for CSRF; Better Auth's own routes also check Origin.
 - `turbo dev`: the API reads `@ackwell/schemas` from its built `dist/`; tsup rebuilds on change, but nest watch may need a save in `apps/api` to pick it up.
 - Strict outbound ordering with pg-boss needs the right queue policy; confirm during Phase 3.
 - `node-hl7-server` / `node-hl7-client` APIs must be checked against their current docs before building.
@@ -89,3 +93,4 @@ New migration after a schema change: `cd apps/api && npx drizzle-kit generate --
 | 2026-11-11 | main session | User approved plan (hot reload, `ackwell`, Coolify DB). git init, monorepo scaffold, Phase 1 core built + tested (schemas 7/7, API e2e 12/12). Dev compose written. Coolify DB/service creation **blocked**: token not admin. Subdomain `ackwell` verified free. |
 | 2026-11-11 | main session | User approved publishing the MLLP range on the LAN IP. Coolify uses 6001–6002, so the range moved to **6100–6150** on `172.16.10.30` (compose + env default + .env.example). |
 | 2026-11-11 | main session | Created Coolify `ackwell-db` (+ daily backup) and hot-reload service `ackwell` via API (admin token), set env vars, deployed. Fixed Turbo strict-env filtering of `DATABASE_URL` (`globalPassThroughEnv`). Live checks: `curl -I` 200, `/health` ok, CRUD smoke test (create, 400 out-of-range, delete) on the live URL. |
+| 2026-11-11 | main session | Phase 1b: Better Auth (guard, admin seed, login page). Tests 19/19. Seed env added in Coolify (password only there), service restarted, user confirmed login on the live site. |

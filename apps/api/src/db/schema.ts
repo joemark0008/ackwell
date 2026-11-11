@@ -112,3 +112,6 @@ export const apiKeys = pgTable(
 
 export type ChannelRow = typeof channels.$inferSelect;
 export type NewChannelRow = typeof channels.$inferInsert;
+
+// ---- Better Auth tables (see auth-schema.ts) ----
+export * from './auth-schema.js';

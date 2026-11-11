@@ -2,7 +2,7 @@
 # The project folder is bind-mounted, so saving a file on the server updates the live site.
 # One container runs `turbo dev`: schemas (tsup --watch) + api (nest --watch, :3000) + web (vite, :5173).
 # Vite proxies /api and /health to the API inside the same container.
-# Secrets (DATABASE_URL, BETTER_AUTH_SECRET) are Coolify env vars, never committed.
+# Secrets (DATABASE_URL, BETTER_AUTH_SECRET, SEED_ADMIN_PASSWORD) are Coolify env vars, never committed.
 # DB = Coolify standalone Postgres "ackwell-db" on the "coolify" network
 # (enable "Connect to Predefined Network" on this service).
 #
@@ -19,6 +19,8 @@ services:
       - NODE_ENV=development
       - DATABASE_URL=${DATABASE_URL}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+      - SEED_ADMIN_EMAIL=${SEED_ADMIN_EMAIL}
+      - SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD}
       - PORT=3000
       - APP_URL=https://ackwell.joemarkgimeno.com
       - PUBLIC_HOST=ackwell.joemarkgimeno.com
