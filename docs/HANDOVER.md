@@ -15,6 +15,7 @@ Ackwell is a full-stack app for HL7 v2 channels. An **inbound channel** is an ML
 ## 2. Key documents
 | File | Purpose |
 |---|---|
+| `README.md` | public readme: overview, local development, tests, HL7 try-out, deployment (dev hot-reload service + planned prod image), brand assets |
 | `docs/PLAN.md` | full plan: how it works, stack, repo layout, data model, design decisions, deployment, build order |
 | `docs/NEXT.md` | progress tracker and the next actions |
 | `docs/HANDOVER.md` | this file — current state |
