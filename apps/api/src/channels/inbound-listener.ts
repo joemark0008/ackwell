@@ -5,6 +5,9 @@ import { Server, type Inbound, type InboundHandler, type InboundRequest } from '
 type AckResponder = Parameters<InboundHandler>[1];
 import { Allowlist, normalizeIp } from './allowlist.js';
 
+/** How long `close()` waits for running handlers before destroying their sockets anyway. */
+const DRAIN_TIMEOUT_MS = 10_000;
+
 export type AckCode = 'AA' | 'AE' | 'AR';
 
 export interface InboundMessage {
@@ -42,6 +45,8 @@ export class InboundListener {
   private lastRaw: string | null = null;
   private readonly allowlist: Allowlist;
   private closed = false;
+  /** Handlers still running (persist + ACK). `close()` waits for them so no sender loses its ACK. */
+  private readonly inflight = new Set<Promise<void>>();
   /** Called when the listener fails after it started (socket error). */
   onCrash: ((err: Error) => void) | null = null;
 
@@ -103,15 +108,34 @@ export class InboundListener {
     });
   }
 
+  /**
+   * Graceful close: new connections are refused and new messages get AR (nothing stored, the sender
+   * retries later), handlers already running finish and write their ACK, then the sockets are closed.
+   * node-hl7-server's own `close()` destroys every socket at once, which would cut off those ACKs.
+   */
   async close(): Promise<void> {
     this.closed = true;
     const inbound = this.inbound;
     this.inbound = null;
     if (!inbound) return;
+    if (this.inflight.size > 0) {
+      const drained = Promise.allSettled([...this.inflight]);
+      const deadline = new Promise<void>((r) => setTimeout(r, DRAIN_TIMEOUT_MS).unref());
+      await Promise.race([drained, deadline]);
+      if (this.inflight.size > 0) {
+        this.log.warn(`Closing :${this.opts.port} with ${this.inflight.size} message(s) still in flight after ${DRAIN_TIMEOUT_MS} ms`);
+      }
+      // Let the ACK writes reach the socket before it is destroyed.
+      await new Promise<void>((r) => setImmediate(r));
+    }
     await inbound.close();
   }
 
   private onConnect(socket: Socket): void {
+    if (this.closed) {
+      socket.destroy();
+      return;
+    }
     const ip = socket.remoteAddress ? normalizeIp(socket.remoteAddress) : undefined;
     if (!this.allowlist.allows(ip)) {
       this.log.warn(`Rejected connection from ${ip ?? 'unknown'} on :${this.opts.port} (not in allowlist)`);
@@ -121,7 +145,13 @@ export class InboundListener {
     this.log.debug(`Connection from ${ip ?? 'unknown'} on :${this.opts.port}`);
   }
 
-  private async handle(req: InboundRequest, res: AckResponder): Promise<void> {
+  private handle(req: InboundRequest, res: AckResponder): Promise<void> {
+    const run = this.handleTracked(req, res).finally(() => this.inflight.delete(run));
+    this.inflight.add(run);
+    return run;
+  }
+
+  private async handleTracked(req: InboundRequest, res: AckResponder): Promise<void> {
     let remoteAddress: string | null = null;
     try {
       remoteAddress = normalizeIp(req.getSocket().remoteAddress ?? '') || null;
@@ -134,7 +164,8 @@ export class InboundListener {
 
     let code: AckCode;
     try {
-      code = await this.handler({ raw, remoteAddress, frameType });
+      // Shutting down: nothing is stored, AR tells the sender to try again (on the next instance).
+      code = this.closed ? 'AR' : await this.handler({ raw, remoteAddress, frameType });
     } catch (e) {
       this.log.error(`Handler failed on :${this.opts.port}: ${(e as Error).message}`);
       code = 'AE';

@@ -1,7 +1,7 @@
 import type { Channel, MessageList, MessageSummary } from '@ackwell/schemas';
 import { QueryClient } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getLiveStatus } from './live-state';
+import { forgetLiveRows, getLiveStatus, overlayLiveRows } from './live-state';
 import { startLiveEvents } from './live';
 import { keys } from './queries';
 
@@ -59,6 +59,7 @@ const start = (checkAuth = async () => true) =>
 
 beforeEach(() => {
   FakeSource.instances = [];
+  forgetLiveRows();
   qc = new QueryClient();
 });
 afterEach(() => stop?.());
@@ -103,6 +104,20 @@ describe('startLiveEvents', () => {
     expect(p.items).toHaveLength(1);
     expect(p.items[0]).toMatchObject({ status: 'sent', ackCode: 'AA' });
     expect(p.total).toBe(1);
+  });
+
+  it('keeps a newer streamed row when a list fetched earlier resolves later', () => {
+    start();
+    FakeSource.instances[0]!.open();
+    const row = msg('m1', { direction: 'outbound', status: 'processing', ackCode: null, updatedAt: '2026-11-11T12:00:01Z' });
+    const sent = { ...row, status: 'sent' as const, ackCode: 'AA', updatedAt: '2026-11-11T12:00:02Z' };
+    FakeSource.instances[0]!.emit('message', sent);
+    // A GET that started before the ACK comes back with the stale status → the streamed row wins.
+    expect(overlayLiveRows([row, msg('m2')])).toEqual([sent, msg('m2')]);
+    // A fetched row that is newer than the streamed one is kept as fetched.
+    const newer = { ...row, status: 'failed' as const, updatedAt: '2026-11-11T12:00:03Z' };
+    const out = [newer];
+    expect(overlayLiveRows(out)).toBe(out);
   });
 
   it('patches channel status in the list and detail caches', () => {

@@ -1,11 +1,14 @@
-import type { Channel, CreateChannelInput, GlobalMessageListQuery, MessageListQuery, SendRequestInput, UpdateChannel } from '@ackwell/schemas';
+import type { Channel, CreateChannelInput, GlobalMessageListQuery, MessageList, MessageListQuery, SendRequestInput, UpdateChannel } from '@ackwell/schemas';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './api';
-import { useLiveStatus } from './live-state';
+import { overlayLiveRows, useLiveStatus } from './live-state';
 
 export type MessageFilters = Pick<MessageListQuery, 'status' | 'q'>;
 /** Filters of the global log (GET /api/messages); channel logs use the subset without channelId/direction. */
 export type LogFilters = Pick<GlobalMessageListQuery, 'status' | 'q' | 'channelId' | 'direction'>;
+
+/** A fetched page may be older than what the live stream already showed; keep the newer rows. */
+const withLiveRows = (l: MessageList): MessageList => ({ ...l, items: overlayLiveRows(l.items) });
 
 export const keys = {
   health: ['health'] as const,
@@ -84,7 +87,7 @@ export function useMessages(channelId: string, filters: MessageFilters, live: bo
   const stream = useLiveStatus();
   return useInfiniteQuery({
     queryKey: keys.messages(channelId, filters),
-    queryFn: ({ pageParam }) => api.channels.messages(channelId, { ...filters, limit: 50, cursor: pageParam }),
+    queryFn: ({ pageParam }) => api.channels.messages(channelId, { ...filters, limit: 50, cursor: pageParam }).then(withLiveRows),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     refetchInterval: live && stream !== 'live' ? LIVE_POLL_MS : false,
@@ -96,7 +99,7 @@ export function useAllMessages(filters: LogFilters) {
   const stream = useLiveStatus();
   return useInfiniteQuery({
     queryKey: keys.allMessages(filters),
-    queryFn: ({ pageParam }) => api.messages.list({ ...filters, limit: 50, cursor: pageParam }),
+    queryFn: ({ pageParam }) => api.messages.list({ ...filters, limit: 50, cursor: pageParam }).then(withLiveRows),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     refetchInterval: stream !== 'live' ? LIVE_POLL_MS : false,

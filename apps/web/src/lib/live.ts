@@ -1,7 +1,7 @@
 import type { Channel, ChannelStatus, MessageList, MessageSummary } from '@ackwell/schemas';
 import type { InfiniteData, Query, QueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { setLiveStatus } from './live-state';
+import { rememberLiveRow, setLiveStatus } from './live-state';
 import { keys, type LogFilters } from './queries';
 
 type MessagePages = InfiniteData<MessageList>;
@@ -47,6 +47,7 @@ function patchPages(data: MessagePages, m: MessageSummary, scope: string | undef
 
 /** Apply one `message` event to every cached message list and the open detail. */
 export function applyMessageEvent(qc: QueryClient, m: MessageSummary) {
+  rememberLiveRow(m);
   const lists = qc.getQueryCache().findAll({
     predicate: (q: Query) => listInfo(q.queryKey) !== null,
   });

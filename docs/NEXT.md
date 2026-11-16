@@ -3,7 +3,7 @@
 Status keys: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 Update this file whenever a task changes state. Each line gives its owner, and links to its report in `docs/reports/` once done.
 
-**Now:** Phases 1, 1b, **2 (inbound), 5 (webhook delivery), 3 (outbound) and 6 (retention) done and LIVE** at https://ackwell.joemarkgimeno.com. **Phase 7 Hardening built and tested 2026-11-11 (SSE, global Messages page, Monaco, TLS, metrics) — live on dev; authenticated browser check of SSE/Messages/Monaco still pending (lead had no admin password). Next: Phase 8 QA, then Phase 9 production deployment (Dockerfile).**
+**Now:** Phases 1–7, typed JSON and file transport done and LIVE at https://ackwell.joemarkgimeno.com. **Phase 8 QA done 2026-11-16** ([report](reports/2026-11-16-qa-phase8.md)): fixtures, gap tests, Playwright flow (local stack), two bugs found and fixed (shutdown ACKs, stale row after send) → **ship**. Still open: the Playwright flow against the live site needs a login (user). **Next: Phase 9 production deployment (Dockerfile).**
 
 ---
 
@@ -20,7 +20,9 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 11. `[x]` **frontend-dev:** Phase 7 — SSE client replacing polling, **Messages** page, Monaco viewer, TLS form fields (2026-11-11, [report](reports/2026-11-11-frontend-phase7.md)).
 12. `[~]` **lead:** HANDOVER/NEXT updated; API-side live smoke done (metrics, 401s, MLLP → ACK). **Pending:** signed-in browser check of `/messages`, SSE through Cloudflare and Monaco (needs the admin password or a browser session).
 12b. `[x]` File transport (shared folder) built, tested and live on dev (2026-11-11, `docs/PLAN-FILE-TRANSPORT.md` → As built).
-13. `[ ]` **qa-engineer:** Phase 8 — test plan, fixtures, must-cover scenarios, Playwright flow on the live site.
+13. `[x]` **qa-engineer + lead:** Phase 8 — test plan, fixtures, must-cover scenarios, Playwright flow on a local stack, QA-1/QA-2 fixed (2026-11-16, [report](reports/2026-11-16-qa-phase8.md)).
+14. `[ ]` **User:** a login for QA on the live site (or the admin password) → lead runs `e2e/` against https://ackwell.joemarkgimeno.com (closes item 12 too).
+15. `[ ]` **lead + backend-dev:** Phase 9 — production image and Coolify deployment.
 
 ---
 
@@ -129,12 +131,12 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 - [x] Deployment: `/mnt/hl7share:/data/files:rslave` + `FILE_ROOT` on the Coolify service, migration live, health ok
 - [ ] **User:** mount the real share on the host at `/mnt/hl7share`, then create a Shared-folder channel and try one file each way
 
-## Phase 8 — QA (owner: qa-engineer)
-- [ ] Test plan in `docs/qa/test-plan.md`
-- [ ] HL7 fixtures in `fixtures/hl7/`
-- [ ] All must-cover scenarios from `.claude/agents/qa-engineer.md`
-- [ ] Playwright UI flow on the live dev site
-- [ ] Bug list → fixes → retest → ship / no-ship
+## Phase 8 — QA (owner: qa-engineer) — DONE 2026-11-16
+- [x] Test plan in `docs/qa/test-plan.md`
+- [x] HL7 fixtures in `fixtures/hl7/` (+ `packages/schemas/src/hl7-fixtures.test.ts`)
+- [x] All must-cover scenarios from `.claude/agents/qa-engineer.md` (`apps/api/test/qa-gaps.e2e.test.ts`, `qa-logs.e2e.test.ts`)
+- [x] Playwright UI flow (`e2e/`, real Chromium) against a throwaway local stack — `[ ]` the same flow against the live dev site (needs a login, item 14)
+- [x] Bug list → fixes → retest → **ship** (QA-1 shutdown ACKs, QA-2 stale row; both fixed, [report](reports/2026-11-16-qa-phase8.md))
 
 ## Phase 9 — Deployment (owner: lead + backend-dev)
 - [ ] Multi-stage `Dockerfile` (web + api in one image), migrations on start, graceful shutdown
