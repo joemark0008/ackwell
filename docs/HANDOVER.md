@@ -136,7 +136,7 @@ New migration after a schema change: `cd apps/api && npx drizzle-kit generate --
 - HL7 libraries: `node-hl7-client@latest`, `node-hl7-server@latest` (node-hl7 monorepo, Node 22+).
 
 ## 5b. Access (dev)
-- Admin login: created by the user through the **setup wizard** (`/setup`), not the env seed. On 2026-11-11 the user forgot the password; at their request the only user (their own email) was deleted from the `user` table (sessions/accounts cascade) and the service restarted so the wizard came back. The password is known only to the user, and only a hash is stored. For signed-in live checks, ask the user for a session or a test account (do not mint sessions in the DB).
+- Admin login: created by the user through the **setup wizard** (`/setup`), not the env seed. On 2026-11-11 the user forgot the password; at their request the only user (their own email) was deleted from the `user` table (sessions/accounts cascade) and the service restarted so the wizard came back. The password is known only to the user, and only a hash is stored. On 2026-11-16 the user forgot it again and asked for a reset: a new random password was hashed with `better-auth/crypto` `hashPassword` inside the dev container, written to `account.password` (`provider_id = 'credential'`) for their user, their sessions were deleted, and a live sign-in returned 200. The new password was given only to the user. For signed-in live checks, ask the user for a session or a test account (do not mint sessions in the DB).
 - Setup status is read at startup: after deleting all users, restart the service (Coolify API restart) to get `{"needed":true}` and a fresh token in the API log.
 
 ## 6. Known issues / risks
