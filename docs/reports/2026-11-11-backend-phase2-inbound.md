@@ -64,14 +64,14 @@ subcomponents, escapes kept, MSH-1/2 raw).
 ## Tests (command + result)
 ```
 docker run --rm --network host -v /var/run/docker.sock:/var/run/docker.sock \
-  -v /root/project/ackwell:/app -w /app node:22-alpine \
+  -v "$PWD":/app -w /app node:22-alpine \
   sh -c "npm run build -w @ackwell/schemas && npx turbo run test typecheck"
 ```
 - schemas 21/21 · API e2e 27/27 (listeners 8: start/bind, AA + JSON, paging + filters, running lock + stop,
   PORT_UNAVAILABLE, allowlist reject/allow, outbound status, boot restore + shutdown) · web 10/10 · typecheck clean ·
   `vite build` OK.
-- Live: `Lab results in` started on 6100; `python mllp_send.py 172.16.10.30 6100 LIVE0001` →
-  `MSA|AA|LIVE0001`; message listed (`ORU^R01`, from `172.16.10.30`) with JSON; dialog shows raw + JSON.
+- Live: `Lab results in` started on 6100; `python mllp_send.py 192.0.2.30 6100 LIVE0001` →
+  `MSA|AA|LIVE0001`; message listed (`ORU^R01`, from `192.0.2.30`) with JSON; dialog shows raw + JSON.
 
 ## Decisions
 - **Any HL7 version is accepted** (`acceptAnyVersion`), so a sender with a different MSH-12 than the channel's

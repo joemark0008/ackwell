@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test';
 
-// BASE_URL: http://localhost:5173 (local stack, see local-stack.sh) or https://ackwell.joemarkgimeno.com.
+// BASE_URL: http://localhost:5173 (local stack, see local-stack.sh) or https://ackwell.example.com.
 // QA_EMAIL / QA_PASSWORD: an existing Ackwell user (sign-up is disabled, the user must exist).
 export default defineConfig({
   testDir: './tests',

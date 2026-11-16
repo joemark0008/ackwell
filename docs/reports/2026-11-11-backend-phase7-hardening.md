@@ -28,7 +28,7 @@ Phase 7 backend: SSE `GET /api/events`, global log `GET /api/messages`, TLS (inb
 None. TLS lives in the existing JSON `config` column.
 
 ## Tests (command + result)
-`docker run --rm --network host -v /var/run/docker.sock:/var/run/docker.sock -v /root/project/ackwell:/app -w /app node:22-alpine sh -c "npm run build -w @ackwell/schemas && npx turbo run test typecheck --filter=@ackwell/api --filter=@ackwell/schemas"`
+`docker run --rm --network host -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD":/app -w /app node:22-alpine sh -c "npm run build -w @ackwell/schemas && npx turbo run test typecheck --filter=@ackwell/api --filter=@ackwell/schemas"`
 - api: 13 files, **91/91** passed (new: SSE 5, global list 5, TLS 10, metrics 7). Typecheck clean. schemas: **25/25** passed (new TLS and global-query cases).
 - SSE: 401 without session, 400 bad filter, headers, `channel.status` + `message` event from a real MLLP send, `channelId` filtering, listener cleanup.
 - TLS: validation, no key leak in any response, key kept on update, MLLP over TLS persists then ACKs, wrong-CA client rejected, plain TCP not answered, allowlist enforced over TLS, mutual TLS (`requestCert` + `ca`). Outbound: `ca` + `rejectUnauthorized` succeeds, wrong CA + `rejectUnauthorized` fails (channel ends `failed`, receiver never got the message), default stays permissive.

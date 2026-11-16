@@ -11,7 +11,7 @@ It is not an npm workspace: dependencies install inside the Playwright image (gl
 ./local-stack.sh down
 
 # Against the live dev site (needs an existing user; sign-up is disabled)
-BASE_URL=https://ackwell.joemarkgimeno.com QA_EMAIL=... QA_PASSWORD=... MLLP_PORT=6103 ./local-stack.sh test
+BASE_URL=https://ackwell.example.com QA_EMAIL=... QA_PASSWORD=... MLLP_PORT=6103 ./local-stack.sh test
 ```
 
 Env: `BASE_URL`, `QA_EMAIL`, `QA_PASSWORD`, `MLLP_PORT` (default 6061, must be inside the API's `MLLP_PORT_RANGE`),

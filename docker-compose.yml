@@ -1,19 +1,16 @@
-# Dev deployment (Coolify custom service "ackwell"): live hot reload.
-# The project folder is bind-mounted, so saving a file on the server updates the live site.
+# Development with live hot reload in one container (no Node needed on the host).
 # One container runs `turbo dev`: schemas (tsup --watch) + api (nest --watch, :3000) + web (vite, :5173).
-# Vite proxies /api and /health to the API inside the same container.
-# Secrets (DATABASE_URL, BETTER_AUTH_SECRET, SEED_ADMIN_PASSWORD) are Coolify env vars, never committed.
-# DB = Coolify standalone Postgres "ackwell-db" on the "coolify" network
-# (enable "Connect to Predefined Network" on this service).
+# Vite proxies /api, /health and /metrics to the API inside the same container.
 #
-# MLLP (raw TCP, cannot go through Traefik/Cloudflare): the range 6100-6150 is published on the
-# machine's LAN IP only. This host-port mapping is an exception to /root/project/CLAUDE.md §2,
-# approved by the user on 2026-11-11 for this project. (6000-6050 clashes with Coolify's own 6001-6002.)
-# HL7 senders connect to 172.16.10.30:<channel port>.
+# Used as a Coolify custom service on the maintainer's dev server, and works with plain Docker Compose:
+#   DATABASE_URL=postgres://... BETTER_AUTH_SECRET=... docker compose up
+# Secrets (DATABASE_URL, BETTER_AUTH_SECRET, SEED_ADMIN_*) come from the environment, never from this file.
 #
-# File transport: the HL7 share is mounted on the host at /mnt/hl7share (by the admin, e.g. CIFS/NFS in
-# /etc/fstab) and only that root goes into the container as FILE_ROOT=/data/files. ORDER/RESULT/PROCESSED/
-# ERROR are folders inside it. rslave lets a share mounted on the host after start show up in the container.
+# MLLP is raw TCP and cannot go through an HTTP reverse proxy, so the range is published on MLLP_BIND_IP
+# (use a LAN address). For production use docker-compose.prod.yml and the Dockerfile instead.
+#
+# File transport: FILE_SHARE is the host folder (e.g. a CIFS/NFS share) mounted as FILE_ROOT=/data/files;
+# ORDER/RESULT/PROCESSED/ERROR are folders inside it. rslave lets a share mounted after start show up.
 services:
   app:
     image: node:22-alpine
@@ -26,25 +23,26 @@ services:
       - SEED_ADMIN_EMAIL=${SEED_ADMIN_EMAIL}
       - SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD}
       - PORT=3000
-      - APP_URL=https://ackwell.joemarkgimeno.com
-      - PUBLIC_HOST=ackwell.joemarkgimeno.com
+      - APP_URL=${APP_URL:-http://localhost:5173}
+      # Public hostname when served behind a TLS proxy (enables Vite allowedHosts + HMR over wss)
+      - PUBLIC_HOST=${PUBLIC_HOST:-}
       - API_PROXY_TARGET=http://localhost:3000
       - MLLP_PORT_RANGE=6100-6150
-      - MLLP_ADVERTISED_HOST=${MLLP_BIND_IP:-172.16.10.30}
+      - MLLP_ADVERTISED_HOST=${MLLP_BIND_IP:-127.0.0.1}
       - RETENTION_DEFAULT_DAYS=7
       - FILE_ROOT=/data/files
       - LOG_LEVEL=info
       - TURBO_TELEMETRY_DISABLED=1
       - NPM_CONFIG_UPDATE_NOTIFIER=false
     volumes:
-      - /root/project/ackwell:/app
+      - ${ACKWELL_SRC:-.}:/app
       - ackwell-node-modules:/app/node_modules
-      - /mnt/hl7share:/data/files:rslave
+      - ${FILE_SHARE:-./data/files}:/data/files:rslave
     expose:
       - "5173"
       - "3000"
     ports:
-      - "${MLLP_BIND_IP:-172.16.10.30}:6100-6150:6100-6150"
+      - "${MLLP_BIND_IP:-127.0.0.1}:6100-6150:6100-6150"
     restart: unless-stopped
 
 volumes:

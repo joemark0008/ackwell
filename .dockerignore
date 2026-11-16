@@ -1,0 +1,16 @@
+**/node_modules
+**/dist
+**/.turbo
+**/coverage
+**/*.log
+.git
+.github
+.claude
+.env
+.env.*
+!.env.example
+docs
+e2e
+fixtures
+Dockerfile
+docker-compose*.yml

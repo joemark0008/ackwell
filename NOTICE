@@ -1,0 +1,9 @@
+Ackwell
+Copyright 2026 The Ackwell contributors
+
+This product includes HL7 v2 field definitions for versions 2.3, 2.5.1 and 2.7, generated from
+hl7-dictionary (https://www.npmjs.com/package/hl7-dictionary), licensed under the MIT License
+(packages/schemas/src/hl7-flat/generated/).
+
+The Ackwell logo SVGs (apps/web/public/brand/) embed the Geist typeface by Vercel
+(https://github.com/vercel/geist-font), licensed under the SIL Open Font License 1.1.

@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ChannelsListPage } from './channels-list';
 
-const settings = { mllp: { host: '172.16.10.30', portRange: { from: 6100, to: 6150 } }, retentionDefaultDays: 7, files: { enabled: true } };
+const settings = { mllp: { host: '192.0.2.30', portRange: { from: 6100, to: 6150 } }, retentionDefaultDays: 7, files: { enabled: true } };
 const ch = (over: Partial<Channel>): Channel => ({
   id: crypto.randomUUID(),
   name: 'x',
@@ -69,7 +69,7 @@ describe('ChannelsListPage', () => {
     ]);
     renderPage();
     const table = within(await screen.findByRole('table'));
-    expect(table.getByText('172.16.10.30:6101')).toBeInTheDocument();
+    expect(table.getByText('192.0.2.30:6101')).toBeInTheDocument();
     expect(table.getByText('→ lis.local:2575')).toBeInTheDocument();
 
     const user = userEvent.setup();

@@ -3,9 +3,11 @@
 Read this first when you pick up the project (new session, new agent, or a new person).
 It describes **where things stand right now**. Update it at the end of every work session.
 
+> The public repo uses placeholders for the dev server (`ackwell.example.com`, `192.0.2.30`, `<service-uuid>`). On the dev server itself, the real values and the pre-scrub history are in `docs/local/` (gitignored, see `docs/local/SERVER.md`).
+
 **Last updated:** 2026-11-11 · **By:** main session
 **Current phase:** Plan **APPROVED** 2026-11-11. Phases 1, 1b, **2 (inbound), 5 (webhook delivery), 3 (outbound) and 6 (retention) done and LIVE on dev**. **Phase 7 Hardening (SSE, global Messages page, Monaco, TLS, metrics) built, tested and running on dev 2026-11-11; a signed-in browser check is still pending (see NEXT.md). Next: Phase 8 QA, then Phase 9 production deployment.**
-**Live (dev):** https://ackwell.joemarkgimeno.com (`curl -I` 200, `/health` ok, `/api/docs` 200). MLLP: `172.16.10.30:6100-6150` (LAN only).
+**Live (dev):** https://ackwell.example.com (`curl -I` 200, `/health` ok, `/api/docs` 200). MLLP: `192.0.2.30:6100-6150` (LAN only).
 
 ---
 
@@ -15,7 +17,10 @@ Ackwell is a full-stack app for HL7 v2 channels. An **inbound channel** is an ML
 ## 2. Key documents
 | File | Purpose |
 |---|---|
-| `README.md` | public readme: overview, local development, tests, HL7 try-out, deployment (dev hot-reload service + planned prod image), brand assets |
+| `README.md` | public readme: features, stack, local development, production with Docker, configuration, HL7 try-out, contributing, license |
+| `Dockerfile`, `docker-compose.prod.yml` | production image (API serves the built SPA, migrations on start) + compose with Postgres |
+| `LICENSE`, `NOTICE`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `.github/` | open-source files (Apache-2.0), issue/PR templates, CI (typecheck, tests, image → GHCR) |
+| `docs/local/` | **gitignored**, dev server only: real URLs, IPs, Coolify UUIDs (`SERVER.md`) and the pre-scrub HANDOVER/NEXT |
 | `docs/PLAN.md` | full plan: how it works, stack, repo layout, data model, design decisions, deployment, build order |
 | `docs/NEXT.md` | progress tracker and the next actions |
 | `docs/PLAN-FILE-TRANSPORT.md` | file transport (shared-folder channels, chokidar) — **built**; read the *As built* section first |
@@ -23,7 +28,7 @@ Ackwell is a full-stack app for HL7 v2 channels. An **inbound channel** is an ML
 | `docs/HANDOVER.md` | this file — current state |
 | `.claude/agents/*.md` | backend-dev, frontend-dev, qa-engineer |
 | `docs/reports/` | agent reports (created when the first report is written) |
-| `/root/project/CLAUDE.md` | server-wide Coolify deployment rules |
+| the server deployment rules (`docs/local/SERVER.md`, not published) | server-wide Coolify deployment rules |
 
 ## 3. Current state
 | Area | State |
@@ -37,8 +42,8 @@ Ackwell is a full-stack app for HL7 v2 channels. An **inbound channel** is an ML
 | Frontend (`apps/web`) | **Designed UI live:** shadcn/ui (radix-nova) + Tailwind 4 + React Router 8 + TanStack Query + RHF. Login, app shell (sidebar, status, theme), channels list, create/edit form (shared Zod schema), channel detail. **Phase 2:** Start/Stop (detail + list menu), message log card (search, status filter, cursor paging, 4 s polling while running), message dialog (raw HL7 beside JSON; `<pre>` panes, Monaco later; **Resend** button). **Phase 5:** webhook card on inbound channels (active secrets, Generate/Rotate/Revoke), one-time secret dialog after create/rotate. **Phase 3:** outbound page has a test-send box and an API keys card (create → key shown once, revoke); Resend works for outbound. **Phase 7:** `lib/live.ts` (one `EventSource` on `/api/events`, patches TanStack caches, polling only as fallback, refetch after reconnect), `/messages` page (`pages/messages.tsx`, shared `components/message-log.tsx` with Channel column + channel/direction filters), Monaco viewer (`components/code-editor.tsx` lazy, `lib/monaco-setup.ts`: local workers, `hl7` language, light/dark themes), TLS fields in the channel form + detail card. Web tests 33/33. Report: `docs/reports/2026-11-11-frontend-phase7.md` |
 | Tests | API e2e (Vitest + Testcontainers Postgres) **123/123** across 16 files (MLLP tests on ports 6000–6050), web **43/43**, schemas **70/70 (+1 skipped: 2.4 has no typed JSON)**, typecheck clean (2026-11-16, Phase 8). Playwright UI flow in `e2e/` (own package, runs in the Playwright image; `e2e/local-stack.sh up|test|down`), 1/1 on the local stack. QA plan `docs/qa/test-plan.md`, fixtures `fixtures/hl7/`. |
 | Dev compose | `docker-compose.yml`: one `node:22-alpine` container running `turbo dev` (vite :5173 proxies `/api`, `/health` + `/metrics` to nest :3000). MLLP ports **not** published yet. |
-| Coolify DB `ackwell-db` | uuid `zcukcdfdgfw5wveafh91vqwd`, Postgres 16, internal only, healthy. Daily backup 02:00, keep 14. |
-| Coolify service `ackwell` | uuid `d3tdtacn0nqgdnanacqwv1pt`, hot reload, predefined network on, URL `https://ackwell.joemarkgimeno.com:5173`, env `DATABASE_URL` + `BETTER_AUTH_SECRET` set in Coolify. Container `app-d3tdtacn0nqgdnanacqwv1pt` publishes `172.16.10.30:6100-6150`. **LIVE.** |
+| Coolify DB `ackwell-db` | uuid `<db-uuid>`, Postgres 16, internal only, healthy. Daily backup 02:00, keep 14. |
+| Coolify service `ackwell` | uuid `<service-uuid>`, hot reload, predefined network on, URL `https://ackwell.example.com:5173`, env `DATABASE_URL` + `BETTER_AUTH_SECRET` set in Coolify. Container `app-<service-uuid>` publishes `192.0.2.30:6100-6150`. **LIVE.** |
 | Git repo | `main` pushed to **https://github.com/joemark0008/ackwell** (remote `origin`, SSH, 2026-11-11). The server pushes with its own SSH key (`~/.ssh/id_ed25519`, added to the GitHub account). Commit only when the user asks. |
 
 ### Phase 2 facts (done 2026-11-11 — see the report for details)
@@ -59,11 +64,11 @@ Ackwell is a full-stack app for HL7 v2 channels. An **inbound channel** is an ML
 - **Sending uses a raw `net`/`tls` socket** (`src/outbound/mllp-sender.ts`), not node-hl7-client: on 4.1.2 the client opened two sockets per connection and `close()` left them open (probe in the report). TLS uses `rejectUnauthorized: false`.
 - Ordering: pg-boss queue `outbound`, policy `key_strict_fifo`, `singletonKey` = channel id. **A job left in pg-boss `failed` state blocks that channel's key**, so the worker always completes a job when it gives up (message status `failed`), never throws on the last try. Retries: fixed `retry.backoffSeconds`, `retry.maxAttempts` total tries. AE/AR are not retried.
 - `ensureQueue` must not pass `policy` for an existing queue (pg-boss: "queue policy cannot be changed after creation").
-- The user's `Orders to LIS` targets `172.16.12.91:22222` (their machine); loopback smoke used temporary channels on 6102, deleted afterwards.
+- The user's `Orders to LIS` targets `192.0.2.91:22222` (their machine); loopback smoke used temporary channels on 6102, deleted afterwards.
 
 ### Phase 6 facts (done 2026-11-11 — see the report)
 - Retention runs hourly (`0 * * * *` UTC) through pg-boss schedule `retention` (singleton queue) and on demand via `POST /api/retention/run`; `GET /api/retention` shows cron, next run and the last run (in memory). Cutoff = `now − channel.retentionDays` on `created_at`; `received` / `queued` / `processing` are never deleted; batches of 1000 per channel; attempts cascade.
-- Live sample: channel `Lab results in` (`661a50b5…`) is **running on 6100**; a smoke message `LIVE0001` from `172.16.10.30` is in its log. Smoke sender: a 20-line Python MLLP client (see session log).
+- Live sample: channel `Lab results in` (`661a50b5…`) is **running on 6100**; a smoke message `LIVE0001` from `192.0.2.30` is in its log. Smoke sender: a 20-line Python MLLP client (see session log).
 
 ### Phase 7 facts (done 2026-11-11 — see both reports)
 - **SSE:** `GET /api/events[?channelId]` behind the session guard; `event: message` (MessageSummary, every create/status change incl. `processing`) and `event: channel.status`; prelude `retry: 3000`, `: ping` every 15 s, `Cache-Control: no-cache, no-transform`, `X-Accel-Buffering: no`. No replay after a reconnect → the web hook invalidates the channel and message lists when it reconnects. Polling (4 s) only runs while the stream is not `live`.
@@ -91,12 +96,12 @@ Ackwell is a full-stack app for HL7 v2 channels. An **inbound channel** is an ML
 - **QA-1 fixed:** `InboundListener` tracks in-flight handlers; `close()` refuses new connections, answers AR to messages arriving while closing, waits ≤ 10 s (`DRAIN_TIMEOUT_MS`) for running handlers to persist + ACK, then closes sockets (node-hl7-server's `close()` destroys sockets at once).
 - **QA-2 fixed:** `apps/web/src/lib/live-state.ts` remembers the newest streamed summary per message; the list query functions in `queries.ts` overlay fetched rows with a newer streamed one (`updatedAt`), so a list GET that resolves after the SSE patch cannot push a row back to "Processing".
 - Playwright: `e2e/tests/ui-flow.spec.ts` creates both channels through the UI (outbound targets the inbound listener on 127.0.0.1), checks the live row (counts list refetches), Monaco panes, typed/lossless switch, resend, global page, webhook headers (local receiver) and that no request leaves the site's origin; then deletes both channels. Not run against the live site: no login available (sign-up disabled; inserting a user into the live DB was denied by the tool policy).
-- Running the suite rebuilds `packages/schemas/dist`, which the live dev container shares via the bind mount: `nest --watch` in the live container may log "Found N errors" and **not restart** until a file under `apps/api/src` changes. Check `docker logs app-d3tdtacn0nqgdnanacqwv1pt` for "listening on" after a suite run and touch a source file if needed.
+- Running the suite rebuilds `packages/schemas/dist`, which the live dev container shares via the bind mount: `nest --watch` in the live container may log "Found N errors" and **not restart** until a file under `apps/api/src` changes. Check `docker logs app-<service-uuid>` for "listening on" after a suite run and touch a source file if needed.
 
 ### How to run tests (Node is not on the host)
 ```
 docker run --rm --network host -v /var/run/docker.sock:/var/run/docker.sock \
-  -v /root/project/ackwell:/app -w /app node:22-alpine \
+  -v "$PWD":/app -w /app node:22-alpine \
   sh -c "npm run build -w @ackwell/schemas && npx turbo run test typecheck"
 ```
 New migration after a schema change: `cd apps/api && npx drizzle-kit generate --name <change>` (in the container).
@@ -113,7 +118,7 @@ New migration after a schema change: `cd apps/api && npx drizzle-kit generate --
 ## 4a. User decisions (2026-11-11)
 - Plan approved. Dev runs in **live hot reload** mode. Subdomain **`ackwell`**. Database = **Coolify-managed Postgres** `ackwell-db`.
 
-- **MLLP ports (2026-11-11):** publishing the MLLP range on the host is approved for `ackwell` (exception to `/root/project/CLAUDE.md` §2). Senders use the machine's **LAN IP `172.16.10.30`**, not the Cloudflare domain. The range is **6100–6150**, not 6000–6050, because Coolify itself listens on 6001–6002. Bound to the LAN IP only (`MLLP_BIND_IP`).
+- **MLLP ports (2026-11-11):** publishing the MLLP range on the host is approved for `ackwell` (exception to the server deployment rules (`docs/local/SERVER.md`, not published) §2). Senders use the machine's **LAN IP `192.0.2.30`**, not the Cloudflare domain. The range is **6100–6150**, not 6000–6050, because Coolify itself listens on 6001–6002. Bound to the LAN IP only (`MLLP_BIND_IP`).
 
 ## 4b. Open items for the user
 1. ~~Coolify admin action~~ — done 2026-11-11 with an admin token (DB + service created via API).
@@ -122,17 +127,17 @@ New migration after a schema change: `cd apps/api && npx drizzle-kit generate --
 ## 5. Environment notes
 - Node is **not** installed on the host. Run npm, drizzle-kit and tests in `node:22-alpine` containers.
 - The Coolify API token comes from the `COOLIFY_API_TOKEN` env var. Never write it to a file.
-- MLLP range **6100–6150** on `172.16.10.30` (env `MLLP_PORT_RANGE`, `MLLP_BIND_IP`).
+- MLLP range **6100–6150** on `192.0.2.30` (env `MLLP_PORT_RANGE`, `MLLP_BIND_IP`).
 - **Watcher quirk (2026-11-11):** running the test container's `npm run build -w @ackwell/schemas` while the dev service is up rewrites `packages/schemas/dist` under the running `nest --watch`; tsc then caches "Could not find a declaration file for '@ackwell/schemas'" (25 errors) and stops restarting the API on edits even though the d.ts is back. Only a service restart clears it. Avoid by skipping the schemas build in the test container (tsup --watch in the dev container already keeps dist current) or restart after testing.
-- Debug: `docker logs app-d3tdtacn0nqgdnanacqwv1pt`. Restart: `POST /api/v1/services/d3tdtacn0nqgdnanacqwv1pt/restart`. A change to `turbo.json`, `package.json` deps or env vars needs a restart; source edits hot-reload.
+- Debug: `docker logs app-<service-uuid>`. Restart: `POST /api/v1/services/<service-uuid>/restart`. A change to `turbo.json`, `package.json` deps or env vars needs a restart; source edits hot-reload.
 - shadcn CLI quirk: `shadcn add` writes `import { cn } from "cn"` (an unrelated npm package). After adding a component, change it to `@/lib/utils`.
 - Visual check: Playwright image `mcr.microsoft.com/playwright:v1.49.1-jammy` against the live URL (see session log 2026-11-11).
 - Turbo 2 runs in strict env mode: any new env var the app reads must be added to `globalPassThroughEnv` in `turbo.json`, or it is invisible to the API.
 - pg-boss keeps its tables in schema `pgboss` of `ackwell-db` (created on first start, not a Drizzle migration). Queue `delivery`. Jobs are deleted 7 days after completion.
-- **Dev container `node_modules` is a named volume**, separate from the host's `node_modules`. After adding a dependency, run `docker exec app-d3tdtacn0nqgdnanacqwv1pt npm install` (or restart the service) — an `npm install` from an outside `docker run` only fills the host copy. Running `tsup --clean` on `packages/schemas` from outside also leaves the in-container `nest --watch` with stale module resolution ("Could not find a declaration file for '@ackwell/schemas'") until the container restarts. Restart = Coolify dashboard → ackwell → Restart (or `POST /api/v1/services/<uuid>/restart` with the token; `docker restart app-…` was used on 2026-11-11 when no token was in the session).
+- **Dev container `node_modules` is a named volume**, separate from the host's `node_modules`. After adding a dependency, run `docker exec app-<service-uuid> npm install` (or restart the service) — an `npm install` from an outside `docker run` only fills the host copy. Running `tsup --clean` on `packages/schemas` from outside also leaves the in-container `nest --watch` with stale module resolution ("Could not find a declaration file for '@ackwell/schemas'") until the container restarts. Restart = Coolify dashboard → ackwell → Restart (or `POST /api/v1/services/<uuid>/restart` with the token; `docker restart app-…` was used on 2026-11-11 when no token was in the session).
 - The first API token was resource-scoped and cannot create resources on the Coolify host; the admin token can. Neither is stored anywhere.
-- Coolify project `dev-projects` (`t420hkorkdrbme5qjhltlq7m`), env `development` (`he4jwsjxdfhrgx8otyzubmov`). Resource name: `ackwell`.
-- Hot-reload reference setup: `/root/project/react-test/`. Full multi-agent reference project: `/root/project/acemc-que/`.
+- Coolify project `dev-projects` (`<project-uuid>`), env `development` (`<env-uuid>`). Resource name: `ackwell`.
+- Hot-reload reference setup: a hot-reload reference setup. Full multi-agent reference project: a multi-agent reference project.
 - HL7 libraries: `node-hl7-client@latest`, `node-hl7-server@latest` (node-hl7 monorepo, Node 22+).
 
 ## 5b. Access (dev)
@@ -140,7 +145,7 @@ New migration after a schema change: `cd apps/api && npx drizzle-kit generate --
 - Setup status is read at startup: after deleting all users, restart the service (Coolify API restart) to get `{"needed":true}` and a fresh token in the API log.
 
 ## 6. Known issues / risks
-- MLLP traffic bypasses the reverse proxy and Cloudflare: senders use `172.16.10.30:6100-6150`. The host firewall (ufw) is inactive; the machine only has a private IP, so the ports are reachable from the LAN (172.16.10.0/25 and routed internal networks) only, unless a router forwards them. If the LAN IP changes, update `MLLP_BIND_IP` or the container will fail to start — a DHCP reservation / static IP is recommended.
+- MLLP traffic bypasses the reverse proxy and Cloudflare: senders use `192.0.2.30:6100-6150`. Keep the MLLP range reachable from the LAN only (private IP, no port forwarding). If the LAN IP changes, update `MLLP_BIND_IP` or the container will fail to start — a DHCP reservation / static IP is recommended.
 - Raw HL7 (patient data) is stored unencrypted — acceptable only while the app stays on the LAN.
 - The dev UI/API is on the public internet behind login. `/api/docs` (Swagger page) is public but every API call needs a session. Cookie-authenticated API routes rely on `SameSite=Lax` for CSRF; Better Auth's own routes also check Origin.
 - `turbo dev`: the API reads `@ackwell/schemas` from its built `dist/`; tsup rebuilds on change, but nest watch may need a save in `apps/api` to pick it up.
@@ -152,7 +157,7 @@ New migration after a schema change: `cd apps/api && npx drizzle-kit generate --
 |---|---|---|
 | 2026-11-11 | main session | Read server rules + PLAN. Created `.claude/agents/` (backend-dev, frontend-dev, qa-engineer), `docs/HANDOVER.md`, `docs/NEXT.md`. Listed open questions (§4b). Waiting for plan approval. |
 | 2026-11-11 | main session | User approved plan (hot reload, `ackwell`, Coolify DB). git init, monorepo scaffold, Phase 1 core built + tested (schemas 7/7, API e2e 12/12). Dev compose written. Coolify DB/service creation **blocked**: token not admin. Subdomain `ackwell` verified free. |
-| 2026-11-11 | main session | User approved publishing the MLLP range on the LAN IP. Coolify uses 6001–6002, so the range moved to **6100–6150** on `172.16.10.30` (compose + env default + .env.example). |
+| 2026-11-11 | main session | User approved publishing the MLLP range on the LAN IP. Coolify uses 6001–6002, so the range moved to **6100–6150** on `192.0.2.30` (compose + env default + .env.example). |
 | 2026-11-11 | main session | Created Coolify `ackwell-db` (+ daily backup) and hot-reload service `ackwell` via API (admin token), set env vars, deployed. Fixed Turbo strict-env filtering of `DATABASE_URL` (`globalPassThroughEnv`). Live checks: `curl -I` 200, `/health` ok, CRUD smoke test (create, 400 out-of-range, delete) on the live URL. |
 | 2026-11-11 | main session | Phase 1b: Better Auth (guard, admin seed, login page). Tests 19/19. Seed env added in Coolify (password only there), service restarted, user confirmed login on the live site. |
 | 2026-11-11 | main session | UI designed and built (shadcn shell, channels list/form/detail, login), `GET /api/settings` (MLLP host + range). Playwright visual pass on live (desktop, mobile 390 px, dark); fixed mobile table clipping + outbound code block. Two sample channels created on dev (`Lab results in`, `Orders to LIS`). |
@@ -161,7 +166,7 @@ New migration after a schema change: `cd apps/api && npx drizzle-kit generate --
 | 2026-11-11 | main session | **Phase 6 built, tested and live.** Hourly retention job (pg-boss schedule, batched deletes, protected statuses), status + run-now routes. API 54/54. Container restarted once (stale schema types). Live: schedule registered, next run 06:00 UTC, manual run → 0 deleted. Phase 3 committed as `71599ac` (user asked). Report `docs/reports/2026-11-11-backend-phase6-retention.md`. |
 | 2026-11-11 | main session | **Phase 3 built, tested and live.** Send endpoint + API keys + strict-FIFO outbound queue + raw MLLP sender + ACK tracking; UI test-send + API keys. node-hl7-client dropped for sending (socket leak). API 50/50, web 14/14. Container restarted once (stale schema types). Live loopback: 3 sends via Bearer key → `sent`/AA in order. Phase 5 committed as `6bd567b` (user asked). Report `docs/reports/2026-11-11-backend-phase3-outbound.md`. |
 | 2026-11-11 | main session | **Phase 5 built, tested and live.** pg-boss queue, `DeliveryAdapter` registry, signed webhook adapter with rotation + backoff retries, secrets API/UI, resend. API 41/41, web 12/12. Container `npm install` + restart for pg-boss. Live smoke: in-container receiver, temp channel on 6101 → `delivered`, signature verified, channel deleted. Report `docs/reports/2026-11-11-backend-phase5-delivery.md`. Phase 2 committed as `2a86ea7` (user asked). |
-| 2026-11-11 | main session | **Phase 2 built, tested and live.** HL7↔JSON codec + message schemas (schemas 21/21), `ChannelManager` + listener + messages API (API 27/27), UI Start/Stop + message log + dialog (web 10/10). Dev container needed an in-container `npm install` + restart (node_modules volume). Live smoke: started `Lab results in` on 6100, MLLP from `172.16.10.30` → `MSA|AA|LIVE0001`, message visible in API + UI. Playwright pass on detail/dialog/list (desktop, mobile, dark). Report `docs/reports/2026-11-11-backend-phase2-inbound.md`. |
+| 2026-11-11 | main session | **Phase 2 built, tested and live.** HL7↔JSON codec + message schemas (schemas 21/21), `ChannelManager` + listener + messages API (API 27/27), UI Start/Stop + message log + dialog (web 10/10). Dev container needed an in-container `npm install` + restart (node_modules volume). Live smoke: started `Lab results in` on 6100, MLLP from `192.0.2.30` → `MSA|AA|LIVE0001`, message visible in API + UI. Playwright pass on detail/dialog/list (desktop, mobile, dark). Report `docs/reports/2026-11-11-backend-phase2-inbound.md`. |
 | 2026-11-11 | main session | **File transport built, tested and live (user AFK, per plan).** Shared-folder channels: atomic outbound writes into `ORDER`, chokidar pickup from `RESULT` → `PROCESSED` / `ERROR` (+ `.error.txt`, Retry), duplicates by sha256, retention of `PROCESSED`, UI connection type + error files card. Migration `0005_file_transport`. Schemas 53/53, API 108/108, web 42/42, typecheck clean. Coolify compose: `FILE_ROOT=/data/files` + `/mnt/hl7share:/data/files:rslave`; service restarted (chokidar installed by the start command), migration applied, `/health` ok. Not committed. |
 | 2026-11-16 | main session + qa-engineer | **Phase 8 QA done → ship.** QA agent: fixtures, `hl7-fixtures.test.ts`, `qa-gaps` / `qa-logs` e2e, found QA-1 (shutdown cuts ACKs). Lead: `docs/qa/test-plan.md`, Playwright flow in `e2e/` (own package, runs in `mcr.microsoft.com/playwright:v1.65.1-noble`, app in `node:22-alpine` on the host network), found QA-2 (stale "Processing" row after send), fixed both, retested. Live signed-in check still blocked (no login; DB user insert denied by policy). Committed as `a98c361` and pushed to `origin/main` (user asked). Live container restarted with `docker restart` because the Coolify API token answered "Unauthenticated"; API 0 errors, listener restored, MLLP `QA8LIVE01` → AA. Report `docs/reports/2026-11-16-qa-phase8.md`. |
 | 2026-11-11 | main session | **Typed flat JSON built, tested and live.** Generated per-version types/runtime for HL7 2.3, 2.5.1, 2.7 (`packages/schemas/src/hl7-flat/`, generator from `hl7-dictionary`), send `{ flat }`, webhook `flat`, viewer Typed/Lossless switch, channel-page "Typed JSON" row, `docs/HL7-TYPED-JSON.md`. Schemas 45/45, API 92/92, web 36/36, typecheck clean. Also: at the user's request the only admin user was deleted and the service restarted so `/setup` came back; the user completed setup again. |

@@ -105,7 +105,7 @@ another source (e.g. the HL7 v2+ definitions) converted to the same `{ fields, s
 1. `packages/schemas/scripts/gen-hl7-flat.mjs`: add the version to `VERSIONS`.
 2. Generate (Node is not on the host):
    ```sh
-   docker run --rm -v /root/project/ackwell:/app -w /app node:22-alpine \
+   docker run --rm -v "$PWD":/app -w /app node:22-alpine \
      npm run gen:hl7-flat -w @ackwell/schemas
    ```
    This writes `src/hl7-flat/generated/v2_4.ts` and prints any datatypes it treats as primitive because the

@@ -218,7 +218,7 @@ into the container. Ackwell needs no share credentials; it only sees `FILE_ROOT`
 2. **Coolify service** (`docker-compose.yml`): add **one** bind mount for the root only,
    `- /mnt/hl7share:/data/files`, and the env `FILE_ROOT=/data/files`. The four folders are not mounted
    separately: they are subfolders of the root, and Ackwell creates `ORDER`, `RESULT`, `PROCESSED` and `ERROR`
-   when a channel starts if they are missing. One mount also keeps every move a same-filesystem `rename`. Done through Coolify like every other change (rule from `/root/project/CLAUDE.md`).
+   when a channel starts if they are missing. One mount also keeps every move a same-filesystem `rename`. Done through Coolify like every other change (rule from the server deployment rules (`docs/local/SERVER.md`, not published)).
 3. **Safety**: channel `directory` values are relative to `FILE_ROOT`; the API resolves `realpath` and rejects
    anything outside it (`..`, absolute paths, symlinks out). Two channels cannot use the same inbound folder.
    The UI shows "folder reachable / not reachable / not writable" when a channel is saved and started.

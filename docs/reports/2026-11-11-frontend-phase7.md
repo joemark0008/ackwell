@@ -27,7 +27,7 @@ Local only: `editor.api` + folding, find, clipboard, bracket matching, word high
 Log in, open `/messages` (sidebar link), send a message to an inbound channel: the row appears at the top without reload; filter by channel/direction; open a row: Monaco panes with HL7 colouring (segment names, `|^~&` delimiters) and folded-capable JSON; toggle theme. Stop the API: indicator changes to reconnecting/periodic refresh and polling resumes. I did not run a browser check.
 
 ## Tests (command + result)
-`docker exec app-d3tdtacn0nqgdnanacqwv1pt sh -c "cd /app && npm run build -w @ackwell/schemas && npx turbo run test typecheck --filter=@ackwell/web"`: 8 files, 26 tests passed (was 4 files / 14 before my additions; new: 6 live-hook tests, 3 Messages page tests, 1 card fallback test); typecheck clean; `vite build` OK. No lint script exists.
+`docker exec app-<service-uuid> sh -c "cd /app && npm run build -w @ackwell/schemas && npx turbo run test typecheck --filter=@ackwell/web"`: 8 files, 26 tests passed (was 4 files / 14 before my additions; new: 6 live-hook tests, 3 Messages page tests, 1 card fallback test); typecheck clean; `vite build` OK. No lint script exists.
 
 ## Open issues / questions for the lead
 - `globalMessageListQuerySchema` not in `@ackwell/schemas` yet; `LogFilters` in `lib/queries.ts` is the local stand-in (swap when exported).

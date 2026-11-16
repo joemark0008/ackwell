@@ -3,7 +3,7 @@
 Status keys: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 Update this file whenever a task changes state. Each line gives its owner, and links to its report in `docs/reports/` once done.
 
-**Now:** Phases 1–7, typed JSON and file transport done and LIVE at https://ackwell.joemarkgimeno.com. **Phase 8 QA done 2026-11-16** ([report](reports/2026-11-16-qa-phase8.md)): fixtures, gap tests, Playwright flow (local stack), two bugs found and fixed (shutdown ACKs, stale row after send) → **ship**. Still open: the Playwright flow against the live site needs a login (user). **Next: Phase 9 production deployment (Dockerfile).**
+**Now:** Phases 1–7, typed JSON and file transport done and LIVE at https://ackwell.example.com. **Phase 8 QA done 2026-11-16** ([report](reports/2026-11-16-qa-phase8.md)): fixtures, gap tests, Playwright flow (local stack), two bugs found and fixed (shutdown ACKs, stale row after send) → **ship**. Still open: the Playwright flow against the live site needs a login (user). **Next: Phase 9 production deployment (Dockerfile).**
 
 ---
 
@@ -11,7 +11,7 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 1. `[x]` Coolify `ackwell-db` + service `ackwell` created (admin token).
 2. `[x]` Env vars set, deployed, verified: `curl -I` 200, `/health` ok, live CRUD smoke test.
 3. `[x]` **backend-dev + frontend-dev:** Phase 1b — auth (Better Auth) so the public dev site is not open before listeners exist.
-4. `[x]` **User:** MLLP host-port exception approved; senders use LAN IP `172.16.10.30`, range 6100–6150.
+4. `[x]` **User:** MLLP host-port exception approved; senders use LAN IP `192.0.2.30`, range 6100–6150.
 5. `[x]` **backend-dev:** Phase 2 — inbound listeners, message log API, UI wiring (2026-11-11, [report](reports/2026-11-11-backend-phase2-inbound.md)).
 6. `[x]` **backend-dev:** Phase 5 — pg-boss, `DeliveryAdapter` + signed webhook, secrets, resend (2026-11-11, [report](reports/2026-11-11-backend-phase5-delivery.md)).
 7. `[x]` **backend-dev:** Phase 3 — outbound send endpoint, API keys, strict-FIFO queue, MLLP sender, ACK tracking (2026-11-11, [report](reports/2026-11-11-backend-phase3-outbound.md)).
@@ -21,17 +21,18 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 12. `[~]` **lead:** HANDOVER/NEXT updated; API-side live smoke done (metrics, 401s, MLLP → ACK). **Pending:** signed-in browser check of `/messages`, SSE through Cloudflare and Monaco (needs the admin password or a browser session).
 12b. `[x]` File transport (shared folder) built, tested and live on dev (2026-11-11, `docs/PLAN-FILE-TRANSPORT.md` → As built).
 13. `[x]` **qa-engineer + lead:** Phase 8 — test plan, fixtures, must-cover scenarios, Playwright flow on a local stack, QA-1/QA-2 fixed (2026-11-16, [report](reports/2026-11-16-qa-phase8.md)).
-14. `[ ]` **User:** a login for QA on the live site (or the admin password) → lead runs `e2e/` against https://ackwell.joemarkgimeno.com (closes item 12 too).
-15. `[ ]` **lead + backend-dev:** Phase 9 — production image and Coolify deployment.
+14. `[ ]` **User:** a login for QA on the live site (or the admin password) → lead runs `e2e/` against https://ackwell.example.com (closes item 12 too).
+15. `[~]` **lead + backend-dev:** Phase 9 — production image done (Dockerfile, prod compose, CI → GHCR, 2026-11-16); Coolify production deployment still open.
+16. `[x]` **lead:** open-source prep (2026-11-16): Apache-2.0 LICENSE + NOTICE, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, `.github` templates + CI, README rewrite, server details moved to gitignored `docs/local/`. `[ ]` **User:** switch the GitHub repo to public.
 
 ---
 
 ## Phase 0 — Planning & setup (owner: lead)
-- [x] Read the server rules (`/root/project/CLAUDE.md`) and `docs/PLAN.md`
+- [x] Read the server rules (the server deployment rules (`docs/local/SERVER.md`, not published)) and `docs/PLAN.md`
 - [x] Create agents: backend-dev, frontend-dev, qa-engineer
 - [x] Create `docs/HANDOVER.md` and `docs/NEXT.md`
 - [x] User approves the plan (2026-11-11: hot reload, `ackwell`, Coolify DB)
-- [x] MLLP ports: range 6100–6150 published on LAN IP 172.16.10.30 (approved 2026-11-11)
+- [x] MLLP ports: range 6100–6150 published on LAN IP 192.0.2.30 (approved 2026-11-11)
 - [x] User answers HANDOVER §4b (Git remote done 2026-11-11: https://github.com/joemark0008/ackwell)
 - [x] Check in Coolify that `ackwell` is free (no other resource uses the subdomain)
 - [x] `git init` + `.gitignore` + `.env.example` (variables from PLAN → Environment variables)
@@ -139,12 +140,12 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 - [x] Bug list → fixes → retest → **ship** (QA-1 shutdown ACKs, QA-2 stale row; both fixed, [report](reports/2026-11-16-qa-phase8.md))
 
 ## Phase 9 — Deployment (owner: lead + backend-dev)
-- [ ] Multi-stage `Dockerfile` (web + api in one image), migrations on start, graceful shutdown
-- [ ] `docker-compose.yml` (app + optional postgres), `.env.example`
+- [x] Multi-stage `Dockerfile` (web + api in one image, API serves the SPA via `serveWebApp` in `main.ts`), migrations on start, graceful shutdown (2026-11-16)
+- [x] `docker-compose.prod.yml` (app + postgres), `.env.example` rewritten with placeholders; CI publishes `ghcr.io/joemark0008/ackwell` (2026-11-16)
 - [x] Coolify: Postgres `ackwell-db` (+ scheduled backups) in `dev-projects`
-- [ ] Coolify: resource `ackwell` in `dev-projects` / `development`, domain `https://ackwell.joemarkgimeno.com`, env vars in Coolify
-- [ ] MLLP port range 6100–6150 on 172.16.10.30 in the prod compose too (dev compose done)
-- [ ] `curl -I https://ackwell.joemarkgimeno.com` → app (not 404/502); send a test HL7 message to a live listener
+- [ ] Coolify: resource `ackwell` in `dev-projects` / `development`, domain `https://ackwell.example.com`, env vars in Coolify
+- [ ] MLLP port range 6100–6150 on 192.0.2.30 in the prod compose too (dev compose done)
+- [ ] `curl -I https://ackwell.example.com` → app (not 404/502); send a test HL7 message to a live listener
 - [ ] Report the URL to the user
 - [ ] Helm chart only if Kubernetes is needed
 
@@ -158,10 +159,10 @@ Update this file whenever a task changes state. Each line gives its owner, and l
 |---|---|---|---|
 | 2026-11-11 | `.claude/agents` (backend-dev, frontend-dev, qa-engineer), HANDOVER, NEXT | main session | — |
 | 2026-11-11 | Plan approved; git init, monorepo, Phase 1 core (schemas, Drizzle, channel CRUD, health, Swagger), tests 19/19, dev compose | main session | — |
-| 2026-11-11 | Coolify `ackwell-db` + hot-reload service deployed; live at https://ackwell.joemarkgimeno.com | main session | — |
+| 2026-11-11 | Coolify `ackwell-db` + hot-reload service deployed; live at https://ackwell.example.com | main session | — |
 | 2026-11-11 | Phase 1b: Better Auth login (API guard, admin seed, login page), live and verified | main session | — |
 | 2026-11-11 | UI design: shadcn shell, channels list/form/detail, `/api/settings`; web tests 8/8, API 19/19; Playwright visual check desktop/mobile/dark on live | main session | — |
-| 2026-11-11 | Phase 2: HL7↔JSON codec, channel manager + MLLP listeners, messages API, UI start/stop + message log + dialog; schemas 21/21, API 27/27, web 10/10; live MLLP smoke on 172.16.10.30:6100 | main session | [report](reports/2026-11-11-backend-phase2-inbound.md) |
+| 2026-11-11 | Phase 2: HL7↔JSON codec, channel manager + MLLP listeners, messages API, UI start/stop + message log + dialog; schemas 21/21, API 27/27, web 10/10; live MLLP smoke on 192.0.2.30:6100 | main session | [report](reports/2026-11-11-backend-phase2-inbound.md) |
 | 2026-11-11 | Phase 5: pg-boss queue, DeliveryAdapter registry, signed webhook adapter (rotation, backoff), secrets API + UI, resend; API 41/41, web 12/12; live signed delivery verified | main session | [report](reports/2026-11-11-backend-phase5-delivery.md) |
 | 2026-11-11 | Phase 3: send endpoint, API keys, strict-FIFO outbound queue, raw MLLP sender, ACK tracking, test-send + keys UI; API 50/50, web 14/14; live loopback sends verified | main session | [report](reports/2026-11-11-backend-phase3-outbound.md) |
 | 2026-11-11 | First-run setup wizard (token in API log → create admin → signed in), brand assets + favicons, README | main session | — |

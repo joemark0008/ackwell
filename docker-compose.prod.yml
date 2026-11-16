@@ -1,0 +1,52 @@
+# Production: one Ackwell container + Postgres.
+#   cp .env.example .env   # set BETTER_AUTH_SECRET, APP_URL, MLLP_ADVERTISED_HOST, POSTGRES_PASSWORD
+#   docker compose -f docker-compose.prod.yml up -d --build
+# Put a TLS reverse proxy in front of port 3000. MLLP is raw TCP and cannot go through an HTTP proxy, so the
+# MLLP range is published directly; bind it to a LAN address (MLLP_BIND_IP) unless senders are on the internet.
+# Run one replica only: each listener owns its port.
+
+services:
+  ackwell:
+    build: .
+    image: ghcr.io/joemark0008/ackwell:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-ackwell}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ackwell}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET (32+ characters)}
+      APP_URL: ${APP_URL:-http://localhost:8080}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+      MLLP_PORT_RANGE: ${MLLP_PORT_RANGE:-6100-6150}
+      MLLP_ADVERTISED_HOST: ${MLLP_ADVERTISED_HOST:-localhost}
+      RETENTION_DEFAULT_DAYS: ${RETENTION_DEFAULT_DAYS:-7}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - '${ACKWELL_PORT:-8080}:3000'
+      # Must match MLLP_PORT_RANGE
+      - '${MLLP_BIND_IP:-0.0.0.0}:6100-6150:6100-6150'
+    volumes:
+      # Shared folder for file-transport channels (ORDER/RESULT/PROCESSED/ERROR live inside it)
+      - ackwell_files:/data/files
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ackwell}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-ackwell}
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-ackwell} -d ${POSTGRES_DB:-ackwell}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - ackwell_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  ackwell_postgres_data:
+  ackwell_files:

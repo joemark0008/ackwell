@@ -8,3 +8,6 @@ coverage/
 !.env.example
 playwright-report/
 test-results/
+
+# Private, server-specific notes (not published)
+docs/local/

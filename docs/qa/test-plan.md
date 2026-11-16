@@ -50,15 +50,15 @@ Node is not installed on the host; everything runs in containers.
 ```sh
 # Unit + API e2e + web component tests + typecheck (Testcontainers needs the docker socket)
 docker run --rm --network host -v /var/run/docker.sock:/var/run/docker.sock \
-  -v /root/project/ackwell:/app -w /app node:22-alpine \
+  -v "$PWD":/app -w /app node:22-alpine \
   sh -c "npm run build -w @ackwell/schemas && npx turbo run test typecheck"
 
 # Playwright UI flow against a throwaway local stack (Postgres + API :3000 + Vite :5173 on the host network)
-cd /root/project/ackwell/e2e
+cd e2e
 ./local-stack.sh up && ./local-stack.sh test; ./local-stack.sh down
 
 # The same flow against the live dev site (needs an existing Ackwell login; sign-up is disabled)
-BASE_URL=https://ackwell.joemarkgimeno.com QA_EMAIL=<email> QA_PASSWORD=<password> MLLP_PORT=6103 \
+BASE_URL=https://ackwell.example.com QA_EMAIL=<email> QA_PASSWORD=<password> MLLP_PORT=6103 \
   ./local-stack.sh test
 ```
 

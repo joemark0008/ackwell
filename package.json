@@ -1,6 +1,15 @@
 {
   "name": "ackwell",
   "private": true,
+  "license": "Apache-2.0",
+  "description": "HL7 v2 integration engine: MLLP in, lossless JSON out, signed webhooks, JSON back to HL7 with ACK tracking.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joemark0008/ackwell.git"
+  },
+  "engines": {
+    "node": ">=22"
+  },
   "packageManager": "npm@10.9.9",
   "workspaces": [
     "apps/*",
